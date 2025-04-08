@@ -18,6 +18,7 @@ CREATE TABLE strings
   ( string_id   integer GENERATED ALWAYS AS IDENTITY PRIMARY KEY
   , project_id  integer NOT NULL
                         REFERENCES projects ( project_id ) ON DELETE CASCADE
-  , string_name text NOT NULL UNIQUE
+  , string_name text NOT NULL
   , string_text text NOT NULL
+  , UNIQUE ( project_id , string_name )
   );

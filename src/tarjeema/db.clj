@@ -123,7 +123,7 @@
                      ) AS j
                   ON ( s.project_id , s.string_name ) = ( $1 , j.key )
                 WHEN MATCHED THEN UPDATE SET string_text = j.value
-                WHEN NOT MATCHED BY SOURCE THEN DELETE
+                WHEN NOT MATCHED BY SOURCE AND s.project_id = $1 THEN DELETE
                 WHEN NOT MATCHED BY TARGET THEN
                      INSERT ( project_id , string_name , string_text )
                      VALUES ( $1 , j.key , j.value )"
@@ -132,4 +132,6 @@
 ;; Strings
 
 (defn get-strings [project-id]
-  (pgh/find conn :strings {:project_id project-id}))
+  (pgh/find conn :strings
+            {:project_id project-id}
+            {:order-by :string_name}))
