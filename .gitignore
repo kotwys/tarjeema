@@ -1,5 +1,11 @@
 **/build/
+/resources/public
+
+# Clojure
 .nrepl-port
 .cache
 .cpcache
 *.jar
+
+# Node.js
+/node_modules
