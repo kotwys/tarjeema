@@ -90,10 +90,8 @@
                            :user_email (:user_email proj)}}))
 
 (defn create-project [fields]
-  (let [result (pgh/insert-one conn :projects
-                               fields
-                               {:returning [:project_id]})]
-    (:project_id result)))
+  (-> (pgh/insert-one conn :projects fields {:returning [:project_id]})
+      :project_id))
 
 (defn update-project [id fields]
   (let [result (pgh/update conn :projects
@@ -129,9 +127,44 @@
                      VALUES ( $1 , j.key , j.value )"
               {:params [id json]}))
 
-;; Strings
+;;;; Strings
 
 (defn get-strings [project-id]
   (pgh/find conn :strings
             {:project_id project-id}
             {:order-by :string_name}))
+
+(defn get-string-info [string-id]
+  (pgh/get-by-id conn :strings string-id
+                 {:fields [:string_name :string_text]
+                  :pk :string_id}))
+
+;;;; Translations
+
+(defn suggest-translation [fields]
+  (-> (pgh/insert-one conn :translations
+                      fields
+                      {:returning [:translation_id]})
+      :translation_id))
+
+(defn- translation->clj [row]
+  {:translation_id   (:translation_id row)
+   :translation_text (:translation_text row)
+   :user             {:user_id    (:user_id row)
+                      :user_name  (:user_name row)
+                      :user_email (:user_email row)}
+   :suggested_at     (:suggested_at row)})
+
+(defn get-translations [string-id lang-id]
+  (pgh/execute conn
+               {:select   [:translation_id
+                           :translation_text
+                           :u/user_id :u/user_name :u/user_email
+                           :suggested_at]
+                :from     :translations
+                :join     [[:users :u] [:using :user_id]]
+                :where    [:and
+                           [:= :lang_id lang-id]
+                           [:= :string_id string-id]]
+                :order-by [[:suggested_at :desc]]}
+               {:as (fold/map #'translation->clj)}))

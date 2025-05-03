@@ -1,7 +1,7 @@
 (ns tarjeema.views.project
   (:require [tarjeema.views.layout :as layout]))
 
-(defn render-project [{:keys [project strings]}]
+(defn render-project [{:keys [project langs translate-href]}]
   (layout/app
    [:main.container-lg
     [:h1 (:project_name project)]
@@ -14,8 +14,6 @@
         " (" [:a {:href (str "mailto:" user_email)} "mail"] ")"])
      [:dt "Source Language"]
      [:dd (-> project :source_lang :lang_name)]]
-    [:table.table.table-bordered
-     (for [{:keys [string_name string_text]} strings]
-       [:tr
-        [:td string_name]
-        [:td string_text]])]]))
+    [:ul
+     (for [lang langs]
+       [:li [:a {:href (translate-href lang)} (:lang_name lang)]])]]))

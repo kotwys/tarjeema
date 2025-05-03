@@ -1,6 +1,6 @@
 (ns tarjeema.app
-  (:require [org.httpkit.server :as hk-server]
-            [mount.core :as mount :refer [defstate]]
+  (:require [mount.core :as mount :refer [defstate]]
+            [org.httpkit.server :as hk-server]
             [reitit.core :as r]
             [reitit.ring :as ring]
             [ring.middleware.defaults :refer [wrap-defaults]]
@@ -8,10 +8,11 @@
             [tarjeema.config :refer [config]]
             [tarjeema.middleware :refer [wrap-user-data wrap-auth]]
             [tarjeema.routes.core :refer [get-route-url]]
-            [tarjeema.routes.index]
+            [tarjeema.routes.create-project]
             [tarjeema.routes.dashboard]
+            [tarjeema.routes.index]
             [tarjeema.routes.project]
-            [tarjeema.routes.create-project]))
+            [tarjeema.routes.translate]))
 
 (defn on-unauthenticated
   [{:keys [uri query-string], ::r/keys [router]} res _raise]
@@ -35,10 +36,11 @@
 (def app
   (ring/ring-handler
    (ring/router
-    [tarjeema.routes.index/routes
+    [tarjeema.routes.create-project/routes
      tarjeema.routes.dashboard/routes
+     tarjeema.routes.index/routes
      tarjeema.routes.project/routes
-     tarjeema.routes.create-project/routes
+     tarjeema.routes.translate/routes
      ["/logout" {:get #'logout}]]
     {:data
      {:middleware [[wrap-auth {:on-unauthenticated on-unauthenticated}]]
