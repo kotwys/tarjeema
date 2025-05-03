@@ -14,8 +14,11 @@
             [tarjeema.routes.create-project]))
 
 (defn on-unauthenticated
-  [{:keys [uri], ::r/keys [router]} res _raise]
-  (let [path (get-route-url router
+  [{:keys [uri query-string], ::r/keys [router]} res _raise]
+  (let [uri  (if query-string
+               (str uri "?" query-string)
+               uri)
+        path (get-route-url router
                             :tarjeema.routes.index/index
                             :query-params {:redirect uri})]
     (-> (res/redirect path :see-other)
