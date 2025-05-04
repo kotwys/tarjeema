@@ -1,5 +1,16 @@
 (ns tarjeema.views.translate
-  (:require [tarjeema.views.layout :as layout]))
+  (:require [tarjeema.views.layout :as layout])
+  (:import [java.time ZoneId]
+           [java.time.format DateTimeFormatter FormatStyle]
+           [java.util Locale]))
+
+(defn render-date [date]
+  (let [formatted (-> FormatStyle/MEDIUM
+                      (DateTimeFormatter/ofLocalizedDateTime)
+                      (.withLocale Locale/UK)
+                      (.withZone (ZoneId/systemDefault))
+                      (.format date))]
+    [:time.date-relative {:datetime date} formatted]))
 
 (defn render-translate
   [{:keys [project lang strings current-string translations mk-string-href]}]
@@ -35,8 +46,8 @@
          (for [translation translations]
            [:li
             [:div
-             [:div (:translation_text translation)]
+             [:pre (:translation_text translation)]
              [:div.mt-2
               [:div.fw-bold (-> translation :user :user_name)]
-              ;; TODO: use relative dates
-              [:div.text-secondary (-> translation :suggested_at)]]]])]]])]))
+              [:div.text-secondary
+               (render-date (-> translation :suggested_at))]]]])]]])]))
