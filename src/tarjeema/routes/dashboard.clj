@@ -5,14 +5,15 @@
             [tarjeema.routes.core :refer [get-route-url]]
             [tarjeema.routes.project :as-alias project]
             [tarjeema.routes.create-project :as-alias crp]
-            [tarjeema.views.dashboard :refer [render-dashboard]]))
+            [tarjeema.views.dashboard :refer [render-dashboard]]
+            [toucan2.core :as t2]))
 
 (defn dashboard
   [{:as req, ::r/keys [router]} res _raise]
-  (let [projects           (db/fetch-projects)
+  (let [projects           (t2/select ::db/project)
         mk-project-url     #(get-route-url router
                                            ::project/project-view
-                                           :path-params {:id %})
+                                           :path-params {:id (:project-id %)})
         create-project-url (get-route-url router ::crp/create-project)]
     (-> (render req
           (render-dashboard {:projects           projects

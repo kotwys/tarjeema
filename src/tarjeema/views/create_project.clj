@@ -29,10 +29,10 @@
            [:option {:selected (nil? source-lang)
                      :value ""}
             "(select a language)"]
-           (for [{:keys [bcp47 lang_name]} languages]
-             [:option {:selected (= bcp47 source-lang)
-                       :value bcp47}
-              lang_name])]]
+           (for [{:keys [bcp-47 lang-name]} languages]
+             [:option {:selected (= bcp-47 source-lang)
+                       :value bcp-47}
+              lang-name])]]
          [:div.mb-2
           [:label.form-label {:for "description"}
            "Project Description "

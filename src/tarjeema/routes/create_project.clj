@@ -9,14 +9,13 @@
             [tarjeema.macros :refer [render]]
             [tarjeema.routes.core :refer [get-route-url]]
             [tarjeema.routes.project :as-alias project]
-            [tarjeema.views.create-project :refer [render-create-project]])
-  (:import [org.pg.error PGErrorResponse]))
+            [tarjeema.views.create-project :refer [render-create-project]]))
 
 (defn- parse-project-data
   [{:strs [project-name source-lang description] :as params}]
   (let [source-lang-id (-> (db/get-languages)
-                           (get (keyword source-lang))
-                           :lang_id)]
+                           (get source-lang)
+                           :lang-id)]
     (when (str/blank? project-name)
       (throw (ex-info "Project name should be specified."
                       {:type   ::input-error
@@ -25,9 +24,9 @@
       (throw (ex-info "The source language of the project should be one of the known languages."
                       {:type   ::input-error
                        :params params})))
-    {:project_name        project-name
-     :source_lang_id      source-lang-id
-     :project_description description}))
+    {:project-name        project-name
+     :source-lang-id      source-lang-id
+     :project-description description}))
 
 (defn create-project
   [{:as req
@@ -48,19 +47,17 @@
             (throw (ex-info (str "Source strings should be supplied as JSON, got: "
                                  content-type ".")
                             {}))))
-        (let [row         (-> (parse-project-data params)
-                              (assoc :owner_id (:user_id user-data)))
-              project-id  (when-let [id (get params "project-id")]
-                            (parse-long id))
-              project-id  (if project-id
-                            (if (db/is-project-owner? user-data project-id)
-                              (db/update-project project-id row)
-                              (throw (ex-info "Not a project owner."
-                                              {:type ::acess-error})))
-                            (db/create-project row))
+        (let [project-id  (some-> params (get "project-id") parse-long)
+              row         (-> (parse-project-data params)
+                              (assoc :owner-id (:user-id user-data))
+                              (cond-> #_a
+                                project-id
+                                (assoc :project-id project-id)))
+              project     (db/create-or-update-project row user-data)
               string-data (-> params (get "strings") :bytes)
               _           (when string-data
-                            (db/upload-strings project-id string-data))
+                            (db/upload-strings project string-data))
+              {:keys [project-id]} project
               project-url (get-route-url router
                                          ::project/project-view
                                          :path-params {:id project-id})]
@@ -68,9 +65,6 @@
         (catch Exception ex
           (let [opts {:error  (cond
                                 ;; TODO: error reporting -M 07.04.2025
-                                (instance? PGErrorResponse ex)
-                                (-> ex ex-data :message)
-
                                 :else (ex-message ex))
                       :params params
                       :directory

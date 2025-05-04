@@ -1,31 +1,49 @@
 (ns tarjeema.db
   (:require [buddy.hashers :as hashers]
+            [camel-snake-kebab.core :as csk]
+            [methodical.core :as m]
             [mount.core :refer [defstate]]
-            [pg.core :as pg]
-            [pg.fold :as fold]
-            [pg.honey :as pgh]
-            [tarjeema.config :refer [config]]))
+            [next.jdbc :as jdbc]
+            [tarjeema.config :refer [config]]
+            [toucan2.core :as t2]
+            [toucan2.honeysql2]
+            [toucan2.jdbc.options]
+            [toucan2.realize :refer [realize]]))
 
 (defstate conn
-  :start (pg/connect (:db-uri config))
-  :stop  (.close conn))
+  :start (jdbc/get-datasource (:db-uri config)))
 
-;;;; Users
+(m/defmethod t2/do-with-connection :default [_ f]
+  (t2/do-with-connection conn f))
+
+;; Enable kebab-case columns
+(swap! toucan2.honeysql2/global-options assoc :quoted-snake true)
+(swap! toucan2.jdbc.options/global-options assoc :label-fn csk/->kebab-case)
 
 (def ^:private hash-opts
   {:alg        :bcrypt+sha512
    :iterations 10})
 
-(defn find-user-by-email [email]
-  (pgh/find-first conn :users {:user_email email}))
+;;;; Users
 
-(defn get-user-roles [id]
-  (pgh/execute conn
-               {:select [:role_name]
-                :from   :user_roles
-                :join   [:roles [:using :role_id]]
-                :where  [:= :user_id id]}
-               {:as (fold/into (map (comp keyword :role_name)) #{})}))
+(m/defmethod t2/table-name ::user [_] "users")
+(m/defmethod t2/primary-keys ::user [_] [:user-id])
+(t2/define-default-fields ::user [:user-id :user-email :user-name])
+
+(m/defmethod t2/model-for-automagic-hydration
+  [:default :user] [_ _]
+  ::user)
+
+(m/defmethod t2/simple-hydrate [::user :roles]
+  [_ _ {:keys [user-id] :as instance}]
+  (let [roles  (t2/do-with-connection
+                nil
+                #(->> (jdbc/plan % ["SELECT role_name
+                                       FROM user_roles NATURAL JOIN roles
+                                      WHERE user_id = ?"
+                                    user-id])
+                      (into #{} (map (comp keyword :role_name)))))]
+    (assoc instance :roles roles)))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn register-user
@@ -34,137 +52,89 @@
   (let [{:keys [password]} data
         password-hash (hashers/derive password hash-opts)
         row (-> data
-                (select-keys [:user_email :user_name])
-                (assoc :password_hash password-hash))]
-    (pgh/insert-one conn :users row)))
+                (select-keys [:user-email :user-name])
+                (assoc :password-hash password-hash))]
+    (t2/insert-returning-instance! ::user row)))
 
 (defn auth-user
   "Authorises a user. When given credentials are correct, returns the user
   data. Otherwise returns nil."
   [email password]
-  (when-let [{:as user :keys [user_id password_hash]}
-             (find-user-by-email email)]
-    (when (-> password (hashers/verify password_hash) :valid)
-      (let [roles (get-user-roles user_id)]
-        (assoc user :roles roles)))))
+  (when-let [{:as user :keys [password-hash]}
+             (t2/select-one [::user :*] :user-email email)]
+    (when (-> password (hashers/verify password-hash) :valid)
+      (t2/hydrate user :roles))))
 
 ;;;; Languages
+
+(m/defmethod t2/table-name ::language [_] "languages")
+(m/defmethod t2/primary-keys ::language [_] [:lang-id])
 
 (def ^:private languages (atom {}))
 
 (defn get-languages []
   (if (seq @languages)
     @languages
-    (let [result (pgh/find conn
-                           :languages {}
-                           {:order-by :bcp47
-                            :as (fold/index-by (comp #'keyword :bcp47))})]
-      (reset! languages result))))
+    (reset! languages
+            (into {}
+                  (map (juxt :bcp-47 identity))
+                  (t2/select-fn-reducible #'realize "languages")))))
+
+(m/defmethod t2/model-for-automagic-hydration
+  [:default :lang] [_ _]
+  ::language)
 
 ;;;; Projects
 
-(defn fetch-projects []
-  (pgh/find conn :projects))
+(m/defmethod t2/table-name ::project [_] "projects")
+(m/defmethod t2/primary-keys ::project [_] [:project-id])
 
-(defn find-project-by-id [id]
-  (when-let [proj (pgh/execute conn
-                               {:select [:project_id
-                                         :project_name
-                                         :project_description
-                                         :l/bcp47
-                                         :o/user_id :o/user_name :o/user_email]
-                                :from   :projects
-                                :join   [[:languages :l]
-                                         [:= :source_lang_id :l/lang_id]
+(m/defmethod t2/model-for-automagic-hydration
+  [::project :owner] [_ _]
+  ::user)
 
-                                         [:users :o]
-                                         [:= :owner_id :o/user_id]]
-                                :where  [:= :project_id id]}
-                               {:as fold/first})]
-    {:project_id          (:project_id proj)
-     :project_name        (:project_name proj)
-     :project_description (:project_description proj)
-     :source_lang         ((keyword (:bcp47 proj)) (get-languages))
-     :owner               {:user_id    (:user_id proj)
-                           :user_name  (:user_name proj)
-                           :user_email (:user_email proj)}}))
+(m/defmethod t2/model-for-automagic-hydration
+  [::project :source-lang] [_ _]
+  ::language)
 
-(defn create-project [fields]
-  (-> (pgh/insert-one conn :projects fields {:returning [:project_id]})
-      :project_id))
+(defn create-or-update-project
+  [{:as project-data, :keys [project-id]} {:keys [user-id]}]
+  (if project-id
+    (let [project (t2/select ::project project-id)]
+      (when (nil? project)
+        (throw (ex-info "No such project" {:type ::input-error})))
+      (when-not (= (:owner-id project) user-id)
+        (throw (ex-info "Not a project owner." {:type ::access-error})))
+      (-> project
+          (merge project-data)
+          (t2/save!)))
 
-(defn update-project [id fields]
-  (let [result (pgh/update conn :projects
-                           fields
-                           {:where [:= :project_id id]
-                            :returning [:project_id]})]
-    (if (empty? result)
-      (throw (ex-info (str "No project #" id " was found.")
-                      {:type ::db-error
-                       :id   id}))
-      (-> result first :project_id))))
-
-(defn is-project-owner? [{:keys [user_id]} id]
-  (let [data (pgh/get-by-id conn :projects id
-                            {:pk :project_id
-                             :fields [:owner_id]})]
-    (= (:owner_id data) user_id)))
+    (t2/insert-returning-instance! ::project project-data)))
 
 (defn upload-strings
   "Uploads source strings for a project ID from a UTF-8-encoded JSON object."
-  [id json]
-  (pg/execute conn
-              "MERGE INTO strings AS s
-               USING ( SELECT *
-                         FROM json_each_text
-                                ( convert_from ( $2::bytea , 'UTF8' )::json )
-                     ) AS j
-                  ON ( s.project_id , s.string_name ) = ( $1 , j.key )
-                WHEN MATCHED THEN UPDATE SET string_text = j.value
-                WHEN NOT MATCHED BY SOURCE AND s.project_id = $1 THEN DELETE
-                WHEN NOT MATCHED BY TARGET THEN
-                     INSERT ( project_id , string_name , string_text )
-                     VALUES ( $1 , j.key , j.value )"
-              {:params [id json]}))
+  [{:keys [project-id]} json]
+  (jdbc/execute! conn
+                 ["CALL upload_strings
+                     ( ?::int
+                     , convert_from ( ?::bytea , 'UTF8' )::json
+                     )"
+                  project-id json]))
 
 ;;;; Strings
 
-(defn get-strings [project-id]
-  (pgh/find conn :strings
-            {:project_id project-id}
-            {:order-by :string_name}))
+(m/defmethod t2/table-name ::string [_] "strings")
+(m/defmethod t2/primary-keys ::string [_] [:string-id])
 
-(defn get-string-info [string-id]
-  (pgh/get-by-id conn :strings string-id
-                 {:fields [:string_name :string_text]
-                  :pk :string_id}))
+(defn get-strings [{:keys [project-id]}]
+  (t2/select :strings
+             :project-id project-id
+             {:order-by :string-name}))
 
 ;;;; Translations
 
-(defn suggest-translation [fields]
-  (-> (pgh/insert-one conn :translations
-                      fields
-                      {:returning [:translation_id]})
-      :translation_id))
+(m/defmethod t2/table-name ::translation [_] "translations")
+(m/defmethod t2/primary-keys ::translation [_] [:translation-id])
 
-(defn- translation->clj [row]
-  {:translation_id   (:translation_id row)
-   :translation_text (:translation_text row)
-   :user             {:user_id    (:user_id row)
-                      :user_name  (:user_name row)
-                      :user_email (:user_email row)}
-   :suggested_at     (:suggested_at row)})
-
-(defn get-translations [string-id lang-id]
-  (pgh/execute conn
-               {:select   [:translation_id
-                           :translation_text
-                           :u/user_id :u/user_name :u/user_email
-                           :suggested_at]
-                :from     :translations
-                :join     [[:users :u] [:using :user_id]]
-                :where    [:and
-                           [:= :lang_id lang-id]
-                           [:= :string_id string-id]]
-                :order-by [[:suggested_at :desc]]}
-               {:as (fold/map #'translation->clj)}))
+(defn suggest-translation [translation-data]
+  (t2/insert-returning-instance! ::translation translation-data))

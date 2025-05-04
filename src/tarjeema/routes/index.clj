@@ -37,7 +37,7 @@
           (throw (ex-info "Invalid email or password." {}))))
       (catch Exception ex
         (-> (render req (render-index {:error (ex-message ex)}))
-            (res/bad-request)
+            (res/status 400) ; Bad Request
             res)))
 
     (-> (res/response "Method not allowed.")

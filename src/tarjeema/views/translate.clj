@@ -16,21 +16,21 @@
   [{:keys [project lang strings current-string translations mk-string-href]}]
   (layout/app
    [:main.container-lg
-    [:h1 (:project_name project) " › " (:lang_name lang)]
+    [:h1 (:project-name project) " › " (:lang-name lang)]
     [:section
      [:h2 "Strings"]
      [:ul
       (for [string strings]
         [:li
          [:a {:href (mk-string-href string)}
-          (:string_text string)]])]]
+          (:string-text string)]])]]
     (when current-string
       [:section
        [:h2 "Translation"]
        [:section
         [:h3 "Source string"]
-        [:pre (:string_text current-string)]
-        [:div.text-secondary (:string_name current-string)]]
+        [:pre (:string-text current-string)]
+        [:div.text-secondary (:string-name current-string)]]
        [:form {:method "post"}
         [:input {:type "hidden" :name "action" :value "suggest"}]
         [:textarea.form-control
@@ -46,8 +46,8 @@
          (for [translation translations]
            [:li
             [:div
-             [:pre (:translation_text translation)]
+             [:pre (:translation-text translation)]
              [:div.mt-2
-              [:div.fw-bold (-> translation :user :user_name)]
+              [:div.fw-bold (-> translation :user :user-name)]
               [:div.text-secondary
-               (render-date (-> translation :suggested_at))]]]])]]])]))
+               (render-date (-> translation :suggested-at))]]]])]]])]))
