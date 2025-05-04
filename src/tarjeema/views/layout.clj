@@ -1,5 +1,5 @@
 (ns tarjeema.views.layout
-  (:require [hiccup2.core :refer [html]]))
+  (:require [hiccup.page :refer [html5]]))
 
 (def site-name "Tarjeema")
 (def ^:dynamic *title* nil)
@@ -7,8 +7,8 @@
 (def ^:dynamic *user-data* nil)
 
 (defn app [& body]
-  (html {:mode :html}
-    [:html
+  (html5
+    [:html {:lang "en"}
      [:head
       [:meta {:charset "utf-8"}]
       [:meta {:name "viewport" :content "width=device-width, initial-scale=1"}]
