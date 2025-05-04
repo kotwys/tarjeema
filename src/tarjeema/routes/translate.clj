@@ -5,6 +5,7 @@
             [ring.util.response :as res]
             [tarjeema.db :as db]
             [tarjeema.macros :refer [with-request-data]]
+            [tarjeema.model :as model]
             [tarjeema.routes.core :refer [get-route-url]]
             [tarjeema.views.translate :refer [render-translate]]
             [toucan2.core :as t2]))
@@ -22,6 +23,26 @@
                              :lang-id          (:lang-id lang)
                              :user-id          (:user-id user)
                              :translation-text text})))
+
+(defmethod handle-action :delete-translation
+  [{:keys [user]} form-params]
+  (let [translation-id (some-> form-params
+                               (get "translation-id")
+                               parse-long)]
+    (when (nil? translation-id)
+      (throw (ex-info "Translation ID (integer) should be provided."
+                      {:type        :input-error
+                       :http-status 400})))
+    (let [translation (t2/select-one ::db/translation translation-id)]
+      (when (nil? translation)
+        (throw (ex-info "Translation not found."
+                        {:type :input-error
+                         :http-status 404})))
+      (when-not (model/can-delete-translation? user translation)
+        (throw (ex-info "Unauthorised to delete translation."
+                        {:type :access-error
+                         :http-status 403})))
+      (t2/delete! ::db/translation translation-id))))
 
 (defn translate
   [{:as req
@@ -42,15 +63,17 @@
       (res (res/redirect (mk-string-href (first strings))))
 
       :else
-      (let [string-id (parse-long string)]
+      (let [string-id (parse-long string)
+            project   (t2/select-one ::db/project project-id)
+            user-data (model/user-in-project user-data project)
+            req       (assoc req :user-data user-data)]
         (when-not (str/blank? action)
           (let [ctx {:action  (keyword action)
                      :string  {:string-id string-id}
                      :lang    lang
                      :user    user-data}]
             (handle-action ctx form-params)))
-        (let [project      (t2/select-one ::db/project project-id)
-              string       (t2/select-one ::db/string string-id)
+        (let [string       (t2/select-one ::db/string string-id)
               translations (-> (t2/select ::db/translation
                                           :string-id string-id
                                           :lang-id   (:lang-id lang)

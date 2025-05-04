@@ -1,5 +1,6 @@
 (ns tarjeema.views.translate
-  (:require [tarjeema.views.layout :as layout])
+  (:require [tarjeema.model :as model]
+            [tarjeema.views.layout :as layout])
   (:import [java.time ZoneId]
            [java.time.format DateTimeFormatter FormatStyle]
            [java.util Locale]))
@@ -11,6 +12,12 @@
                       (.withZone (ZoneId/systemDefault))
                       (.format date))]
     [:time.date-relative {:datetime date} formatted]))
+
+(defn action-btn [data content]
+  [:form {:method "post"}
+   (for [[name value] data]
+     [:input {:type "hidden" :name name :value value}])
+   [:button.btn.btn-primary content]])
 
 (defn render-translate
   [{:keys [project lang strings current-string translations mk-string-href]}]
@@ -50,4 +57,10 @@
              [:div.mt-2
               [:div.fw-bold (-> translation :user :user-name)]
               [:div.text-secondary
-               (render-date (-> translation :suggested-at))]]]])]]])]))
+               (render-date (-> translation :suggested-at))]]]
+            [:div
+             (when (model/can-delete-translation? layout/*user-data*
+                                                  translation)
+               (action-btn {:action         :delete-translation
+                            :translation-id (:translation-id translation)}
+                           "Delete"))]])]]])]))

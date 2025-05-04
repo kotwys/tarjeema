@@ -6,7 +6,7 @@
 (defn provide-user-data [{:keys [user-data]}]
   (some-> user-data
           t2/current
-          (select-keys [:user-name :user-email :roles])))
+          (select-keys [:user-id :user-name :user-email :roles])))
 
 (defmacro with-request-data [req & body]
   `(binding [layout/*user-data* (provide-user-data ~req)]
