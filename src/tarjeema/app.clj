@@ -12,13 +12,12 @@
             [tarjeema.routes.dashboard]
             [tarjeema.routes.index]
             [tarjeema.routes.project]
-            [tarjeema.routes.translate]))
+            [tarjeema.routes.translate]
+            [tarjeema.util :refer [this-uri]]))
 
 (defn on-unauthenticated
-  [{:keys [uri query-string], ::r/keys [router]} res _raise]
-  (let [uri  (if query-string
-               (str uri "?" query-string)
-               uri)
+  [{:as req, ::r/keys [router]} res _raise]
+  (let [uri  (this-uri req)
         path (get-route-url router
                             :tarjeema.routes.index/index
                             :query-params {:redirect uri})]

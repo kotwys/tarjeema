@@ -1,5 +1,6 @@
 (ns tarjeema.routes.translate
-  (:require [clojure.string :as str]
+  (:require [better-cond.core :as b]
+            [clojure.string :as str]
             [reitit.core :as r]
             [ring.middleware.params :refer [wrap-params]]
             [ring.util.response :as res]
@@ -8,6 +9,7 @@
             [tarjeema.model :as model]
             [tarjeema.routes.core :refer [get-route-url]]
             [tarjeema.views.translate :refer [render-translate]]
+            [tarjeema.util :refer [this-uri]]
             [toucan2.core :as t2]))
 
 (defmulti ^:private handle-action
@@ -26,23 +28,25 @@
 
 (defmethod handle-action :delete-translation
   [{:keys [user]} form-params]
-  (let [translation-id (some-> form-params
-                               (get "translation-id")
-                               parse-long)]
-    (when (nil? translation-id)
-      (throw (ex-info "Translation ID (integer) should be provided."
-                      {:type        :input-error
-                       :http-status 400})))
-    (let [translation (t2/select-one ::db/translation translation-id)]
-      (when (nil? translation)
-        (throw (ex-info "Translation not found."
-                        {:type :input-error
-                         :http-status 404})))
-      (when-not (model/can-delete-translation? user translation)
-        (throw (ex-info "Unauthorised to delete translation."
-                        {:type :access-error
-                         :http-status 403})))
-      (t2/delete! ::db/translation translation-id))))
+  (b/cond
+    :let [translation-id (some-> form-params
+                                 (get "translation-id")
+                                 parse-long)]
+
+    (nil? translation-id)
+    (throw (ex-info "Translation ID (integer) should be provided."
+                    {:type :input-error, :http-status 400}))
+
+    :let [translation (t2/select-one ::db/translation translation-id)]
+    (nil? translation)
+    (throw (ex-info "Translation not found."
+                    {:type :input-error, :http-status 404}))
+
+    (not (model/can-delete-translation? user translation))
+    (throw (ex-info "Unauthorised to delete translation."
+                    {:type :access-error, :http-status 403}))
+
+    (t2/delete! ::db/translation translation-id)))
 
 (defn translate
   [{:as req
@@ -58,38 +62,40 @@
                                        {:project project-id
                                         :lang    (:bcp-47 lang)
                                         :string  (:string-id %)})]
-    (cond
+    (b/cond
       (str/blank? string)
       (res (res/redirect (mk-string-href (first strings))))
 
-      :else
-      (let [string-id (parse-long string)
+      :let [string-id (parse-long string)
             project   (t2/select-one ::db/project project-id)
             user-data (model/user-in-project user-data project)
             req       (assoc req :user-data user-data)]
-        (when-not (str/blank? action)
-          (let [ctx {:action  (keyword action)
-                     :string  {:string-id string-id}
-                     :lang    lang
-                     :user    user-data}]
-            (handle-action ctx form-params)))
-        (let [string       (t2/select-one ::db/string string-id)
-              translations (-> (t2/select ::db/translation
-                                          :string-id string-id
-                                          :lang-id   (:lang-id lang)
-                                          {:order-by [[:suggested-at :desc]]})
-                               (t2/hydrate :user))]
-          (-> (with-request-data req
-                (render-translate {:project        project
-                                   :lang           lang
-                                   :strings        strings
-                                   :mk-string-href mk-string-href
-                                   :current-string string
-                                   :translations   translations}))
-              str
-              (res/response)
-              (res/content-type "text/html")
-              res))))))
+
+      (not (str/blank? action))
+      (let [ctx {:action  (keyword action)
+                 :string  {:string-id string-id}
+                 :lang    lang
+                 :user    user-data}]
+        (handle-action ctx form-params)
+        (res (res/redirect (this-uri req) :see-other)))
+
+      :let [string       (t2/select-one ::db/string string-id)
+            translations (-> (t2/select ::db/translation
+                                        :string-id string-id
+                                        :lang-id   (:lang-id lang)
+                                        {:order-by [[:suggested-at :desc]]})
+                             (t2/hydrate :user))]
+      (-> (with-request-data req
+            (render-translate {:project        project
+                               :lang           lang
+                               :strings        strings
+                               :mk-string-href mk-string-href
+                               :current-string string
+                               :translations   translations}))
+          str
+          (res/response)
+          (res/content-type "text/html")
+          res))))
 
 (def routes
   ["/translate" {:handler    #'translate
