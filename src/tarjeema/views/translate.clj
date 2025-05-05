@@ -54,13 +54,28 @@
            [:li
             [:div
              [:pre (:translation-text translation)]
-             [:div.mt-2
+             [:div.mt-2.d-flex.gap-2
               [:div.fw-bold (-> translation :user :user-name)]
               [:div.text-secondary
-               (render-date (-> translation :suggested-at))]]]
-            [:div
+               (render-date (-> translation :suggested-at))]]
+             (when (-> translation :approval :translation-id)
+               (let [{:keys [approval]} translation]
+                 [:div.mt-2.d-flex.gap-2
+                  [:div.text-success "✅ Approved"]
+                  [:div.fw-bold (-> approval :user :user-name)]
+                  [:div.text-secondary
+                   (render-date (-> approval :approved-at))]]))]
+            [:div.d-flex
              (when (model/can-delete-translation? layout/*user-data*
                                                   translation)
                (action-btn {:action         :delete-translation
                             :translation-id (:translation-id translation)}
-                           "Delete"))]])]]])]))
+                           "Delete"))
+             (when (model/can-approve? layout/*user-data*)
+               (if (-> translation :approval :translation-id)
+                 (action-btn {:action         :disapprove
+                              :translation-id (:translation-id translation)}
+                             "Disapprove")
+                 (action-btn {:action         :approve
+                            :translation-id (:translation-id translation)}
+                             "Approve")))]])]]])]))

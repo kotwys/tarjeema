@@ -26,8 +26,7 @@
                              :user-id          (:user-id user)
                              :translation-text text})))
 
-(defmethod handle-action :delete-translation
-  [{:keys [user]} form-params]
+(defmethod handle-action :delete-translation [{:keys [user]} form-params]
   (b/cond
     :let [translation-id (some-> form-params
                                  (get "translation-id")
@@ -47,6 +46,48 @@
                     {:type :access-error, :http-status 403}))
 
     (t2/delete! ::db/translation translation-id)))
+
+(defmethod handle-action :approve [{:keys [user]} form-params]
+  (b/cond
+    :let [translation-id (some-> form-params
+                                 (get "translation-id")
+                                 parse-long)]
+
+    (nil? translation-id)
+    (throw (ex-info "Translation ID (integer) should be provided."
+                    {:type :input-error, :http-status 400}))
+
+    :let [translation (t2/select-one ::db/translation translation-id)]
+    (nil? translation)
+    (throw (ex-info "Translation not found."
+                    {:type :input-error, :http-status 404}))
+
+    (not (model/can-approve? user))
+    (throw (ex-info "Unauthorised to approve translation."
+                    {:type :access-error, :http-status 403}))
+
+    (db/approve-translation translation user)))
+
+(defmethod handle-action :disapprove [{:keys [user]} form-params]
+  (b/cond
+    :let [translation-id (some-> form-params
+                                 (get "translation-id")
+                                 parse-long)]
+
+    (nil? translation-id)
+    (throw (ex-info "Translation ID (integer) should be provided."
+                    {:type :input-error, :http-status 400}))
+
+    :let [translation (t2/select-one ::db/translation translation-id)]
+    (nil? translation)
+    (throw (ex-info "Translation not found."
+                    {:type :input-error, :http-status 404}))
+
+    (not (model/can-approve? user))
+    (throw (ex-info "Unauthorised to delete translation."
+                    {:type :access-error, :http-status 403}))
+
+    (db/disapprove-translation translation)))
 
 (defn translate
   [{:as req
@@ -84,7 +125,7 @@
                                         :string-id string-id
                                         :lang-id   (:lang-id lang)
                                         {:order-by [[:suggested-at :desc]]})
-                             (t2/hydrate :user))]
+                             (t2/hydrate :user [:approval :user]))]
       (-> (with-request-data req
             (render-translate {:project        project
                                :lang           lang

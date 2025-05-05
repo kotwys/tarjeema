@@ -6,6 +6,7 @@
             [next.jdbc :as jdbc]
             [tarjeema.config :refer [config]]
             [toucan2.core :as t2]
+            [toucan2.execute :as t2.exec]
             [toucan2.honeysql2]
             [toucan2.jdbc.options]
             [toucan2.realize :refer [realize]]))
@@ -24,6 +25,12 @@
   {:alg        :bcrypt+sha512
    :iterations 10})
 
+(defn- sql [query & [{into* :into, :keys [model]}]]
+  (let [jdbc-fn   (if-let [[tx coll] into*]
+                    #(into coll tx (t2.exec/reducible-query % model query))
+                    #(t2.exec/query % model query))]
+    (t2/do-with-connection nil jdbc-fn)))
+
 ;;;; Users
 
 (m/defmethod t2/table-name ::user [_] "users")
@@ -36,13 +43,11 @@
 
 (m/defmethod t2/simple-hydrate [::user :roles]
   [_ _ {:keys [user-id] :as instance}]
-  (let [roles  (t2/do-with-connection
-                nil
-                #(->> (jdbc/plan % ["SELECT role_name
-                                       FROM user_roles NATURAL JOIN roles
-                                      WHERE user_id = ?"
-                                    user-id])
-                      (into #{} (map (comp keyword :role_name)))))]
+  (let [roles (sql {:select [:role-name]
+                    :from   [:user-roles]
+                    :join   [:roles [:using :role-id]]
+                    :where  [:= :user-id user-id]}
+                   {:into [(map (comp keyword :role_name)) #{}]})]
     (assoc instance :roles roles)))
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
@@ -138,3 +143,25 @@
 
 (defn suggest-translation [translation-data]
   (t2/insert-returning-instance! ::translation translation-data))
+
+(m/defmethod t2/table-name ::approval [_] "translation_approvals")
+(m/defmethod t2/primary-keys ::approval [_] [:translation-id])
+
+(m/defmethod t2/batched-hydrate [::translation :approval]
+  [_ _ instances]
+  (let [ids     (into #{} (map :translation-id) instances)
+        results (sql {:select [:*]
+                      :from   [:translation-approvals]
+                      :where  [:in :translation-id ids]}
+                     {:model ::approval
+                      :into  [(map (juxt :translation-id realize)) {}]})]
+    (for [instance instances]
+      (assoc instance :approval (get results (:translation-id instance))))))
+
+(defn approve-translation [translation user]
+  (let [data {:translation-id (:translation-id translation)
+              :user-id        (:user-id user)}]
+    (t2/insert-returning-instance! ::approval data)))
+
+(defn disapprove-translation [translation]
+  (t2/delete! ::approval :translation-id (:translation-id translation)))
