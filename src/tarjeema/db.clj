@@ -165,3 +165,8 @@
 
 (defn disapprove-translation [translation]
   (t2/delete! ::approval :translation-id (:translation-id translation)))
+
+(defn build-translation [{:keys [project-id]} {:keys [lang-id]}]
+  (-> (t2.exec/query-one ["SELECT build_translation ( ?::int , ?::int )::text"
+                          project-id lang-id])
+      :build-translation))
