@@ -83,7 +83,9 @@
     (reset! languages
             (into {}
                   (map (juxt :bcp-47 identity))
-                  (t2/select-fn-reducible #'realize "languages")))))
+                  (t2/select-fn-reducible #'realize
+                                          ::language
+                                          {:order-by [:bcp47]})))))
 
 (m/defmethod t2/model-for-automagic-hydration
   [:default :lang] [_ _]
