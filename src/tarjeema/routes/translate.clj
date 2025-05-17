@@ -118,5 +118,4 @@
 (def routes
   ["/translate" {:handler    #'translate
                  :name       ::translate
-                 :middleware [[wrap-params]]
-                 :auth       true}])
+                 :middleware [[wrap-params]]}])

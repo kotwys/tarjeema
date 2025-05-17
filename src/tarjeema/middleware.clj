@@ -1,5 +1,9 @@
 (ns tarjeema.middleware
-  (:require [reitit.core :as r]))
+  (:require [ring.util.response :as res]
+            [reitit.core :as r]
+            [tarjeema.db :as-alias db]
+            [tarjeema.model :as model]
+            [toucan2.core :as t2]))
 
 (defn wrap-user-data
   "Middleware that retrieves and writes user data based on session data."
@@ -33,3 +37,26 @@
         (handler req res raise)
         (on-unauthenticated req res raise))
       (handler req res raise))))
+
+(defn wrap-project
+  [handler f]
+  (fn [{:as req :keys [user-data]} res raise]
+    (let [{:keys [project-id]} (f req)
+          project   (t2/select-one ::db/project project-id)]
+      (when (nil? project)
+        (throw (ex-info "Project not found." {:type        :input-error
+                                              :http-status 404})))
+      (handler (assoc req
+                      :project   project
+                      :user-data (some-> user-data
+                                         (model/user-in-project project)))
+               res raise))))
+
+(defn wrap-roles
+  [handler accept-role?]
+  (fn [{:as req :keys [user-data]} res raise]
+    (if (some accept-role? (:roles user-data))
+      (handler req res raise)
+      (-> (res/response "Forbidden.")
+          (res/status 403)
+          res))))

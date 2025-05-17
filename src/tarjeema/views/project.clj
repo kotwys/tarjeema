@@ -17,11 +17,12 @@
     [:ul
      (for [lang langs]
        [:li [:a {:href (translate-href lang)} (:lang-name lang)]])]
-    [:section
-     [:h2 "Build Translations"]
-     [:form {:action build-href :method "get"}
-      [:select {:name "lang"}
-       [:option "-- select a language --"]
-       (for [lang langs]
-         [:option {:value (:bcp-47 lang)} (:lang-name lang)])]
-      [:input.btn.btn-primary {:type "submit" :value "Build"}]]]]))
+    (when (some #{:owner} (:roles layout/*user-data*))
+      [:section
+       [:h2 "Build Translations"]
+       [:form {:action build-href :method "get"}
+        [:select {:name "lang", :required true}
+         [:option {:selected true, :disabled true} "Select a language"]
+         (for [lang langs]
+           [:option {:value (:bcp-47 lang)} (:lang-name lang)])]
+        [:input.btn.btn-primary {:type "submit" :value "Build"}]]])]))
