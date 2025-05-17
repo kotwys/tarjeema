@@ -1,5 +1,7 @@
 (ns tarjeema.routes.project
-  (:require [methodical.core :as m]
+  (:require [better-cond.core :as b]
+            [clojure.string :as str]
+            [methodical.core :as m]
             [reitit.core :as r]
             [ring.middleware.multipart-params :refer [parse-multipart-params]]
             [ring.middleware.multipart-params.byte-array
@@ -14,7 +16,8 @@
             [tarjeema.routes.core :refer [get-route-url]]
             [tarjeema.routes.translate :as-alias translate]
             [tarjeema.views.project :refer [render-project
-                                            render-project-settings]]
+                                            render-project-settings
+                                            render-proofreaders]]
             [toucan2.core :as t2]))
 
 (defn- extract-project [{{:keys [id]} :path-params}]
@@ -38,7 +41,7 @@
                                         :lang    (:bcp-47 %)})
         build-href (get-route-url router ::build-project
                                   :path-params path-params)
-        settings-href (get-route-url router ::project-settings
+        settings-href (get-route-url router ::general-settings
                                      :path-params path-params)]
     (-> (render req
                 (render-project {:project        project
@@ -49,26 +52,42 @@
         res)))
 
 (m/defmulti project-settings
-  (fn [{:keys [request-method]} _ _] request-method)
+  (fn [{:keys [request-method], {{:keys [name]} :data} ::r/match} _ _]
+    [request-method name])
   :combo (m/thread-first-method-combination))
 
-(m/defmethod project-settings :before :default [req _ _]
-  (assoc req ::directory {:languages (vals (db/get-languages))}))
+(def ^:private settings-tabs
+  [{:key  ::general-settings
+    :name "General"}
+   {:key  ::proofreaders
+    :name "Proofreaders"}])
 
-(m/defmethod project-settings :get
-  [{:as req, ::keys [directory], :keys [flash project]} res _raise]
+(m/defmethod project-settings :before :default
+  [{:as req, ::r/keys [router], :keys [path-params]} _ _]
+  (let [tabs (mapv (fn [{:keys [key name]}]
+                     {:href (get-route-url router key
+                                           :path-params path-params)
+                      :name name})
+                   settings-tabs)]
+    (-> req
+        (assoc-in [::view-opts :tabs] tabs)
+        (assoc-in [::view-opts :directory]
+                  {:languages (vals (db/get-languages))}))))
+
+(m/defmethod project-settings [:get ::general-settings]
+  [{:as req, ::keys [view-opts], :keys [flash project]} res _raise]
   (let [project (t2/hydrate project :source-lang)
         params  (project->form-params project)]
     (-> (render req
           (render-project-settings
-           {:params    params
-            :directory directory
-            :alert     (:alert flash)}))
+           (merge view-opts
+                  {:params    params
+                   :alert     (:alert flash)})))
         res)))
 
-(m/defmethod project-settings :post
+(m/defmethod project-settings [:post ::general-settings]
   [{:as req
-    ::keys [directory]
+    ::keys [view-opts]
     :keys [user-data uri]} res _raise]
   (let [params (parse-multipart-params req {:store (byte-array-store)})]
     (try
@@ -80,13 +99,66 @@
                        :kind    :success})
             res))
       (catch Exception ex
-        (let [opts {:alert     {:message (ex-message ex)
-                                :kind    :danger}
-                    :params    params
-                    :directory directory}]
+        (let [opts (merge view-opts
+                          {:alert  {:message (ex-message ex)
+                                    :kind    :danger}
+                           :params params})]
           (-> (render req (render-project-settings opts))
               (res/status 500)
               res))))))
+
+(m/defmethod project-settings [:get ::proofreaders]
+  [{:as req, ::keys [view-opts], :keys [project]} res _raise]
+  (let [proofreaders (-> ::db/proofreader
+                         (t2/select :project-id (:project-id project))
+                         (t2/hydrate :user :lang))
+        opts (assoc view-opts :proofreaders proofreaders)]
+    (-> (render req (render-proofreaders opts))
+        res)))
+
+(m/defmulti handle-proofreader-action (fn [{:keys [action]} _] action))
+
+(m/defmethod handle-proofreader-action ::promote
+  [{:keys [project]} {:strs [email lang]}]
+  (b/cond
+    :let [lang (get (db/get-languages) lang)]
+    (nil? lang)
+    (throw (ex-info (str "Unknown language " lang ".") {}))
+
+    (str/blank? email)
+    (throw (ex-info "An email should be provided." {}))
+
+    :let [user (t2/select-one ::db/user :user-email email)]
+    (nil? user)
+    (throw (ex-info (str "User with email " email " not found.") {}))
+
+    (t2/insert! ::db/proofreader
+                :project-id (:project-id project)
+                :user-id    (:user-id user)
+                :lang-id    (:lang-id lang))))
+
+(m/defmethod handle-proofreader-action ::demote
+  [{:keys [project]} {:strs [user-id lang-id]}]
+  (let [user-id (some-> user-id parse-long)
+        lang-id (some-> lang-id parse-long)]
+    (when (nil? user-id)
+      (throw (ex-info "User ID should be provided." {})))
+    (when (nil? lang-id)
+      (throw (ex-info "Language ID should be provided." {})))
+    (t2/delete! ::db/proofreader
+                :project-id (:project-id project)
+                :user-id user-id
+                :lang-id lang-id)))
+
+(m/defmethod project-settings [:post ::proofreaders]
+  [{:keys [uri project form-params]} res _raise]
+  (let [{:strs [action]} form-params]
+    (when (str/blank? action)
+      (throw (ex-info "No action provided." {})))
+    (let [ctx {:action  (keyword (namespace ::here) action)
+               :project project}]
+      (handle-proofreader-action ctx form-params)
+      (res (res/redirect uri :see-other)))))
 
 (defn build-project
   [{:keys [project], {:strs [lang]} :params} res _raise]
@@ -104,10 +176,14 @@
   ["/project/:id" {:middleware [[wrap-project #'extract-project]]}
    ["" {:get  #'project-view
         :name ::project-view}]
-   ["/settings" {:get        #'project-settings
+   ["/settings" {:middleware [[wrap-roles #{:owner}]]}
+    ["/general" {:get        #'project-settings
                  :post       #'project-settings
-                 :name       ::project-settings
-                 :middleware [[wrap-roles #{:owner}]]}]
+                 :name       ::general-settings}]
+    ["/proofreaders" {:get        #'project-settings
+                      :post       #'project-settings
+                      :name       ::proofreaders
+                      :middleware [[wrap-params]]}]]
    ["/build" {:get        #'build-project
               :name       ::build-project
               :middleware [[wrap-params]

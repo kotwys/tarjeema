@@ -9,7 +9,8 @@
           (select-keys [:user-id :user-name :user-email :roles])))
 
 (defmacro with-request-data [req & body]
-  `(binding [layout/*user-data* (provide-user-data ~req)]
+  `(binding [layout/*user-data* (provide-user-data ~req)
+             layout/*uri*       (:uri ~req)]
      ~@body))
 
 (defmacro render [req & body]

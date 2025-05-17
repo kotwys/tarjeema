@@ -128,6 +128,8 @@
                      )"
                   project-id json]))
 
+(m/defmethod t2/table-name ::proofreader [_] "proofreaders")
+
 ;;;; Strings
 
 (m/defmethod t2/table-name ::string [_] "strings")

@@ -3,6 +3,7 @@
 
 (def site-name "Tarjeema")
 (def ^:dynamic *title* nil)
+(def ^:dynamic *uri* nil)
 
 (def ^:dynamic *user-data* nil)
 

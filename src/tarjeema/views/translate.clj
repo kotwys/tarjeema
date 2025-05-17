@@ -1,5 +1,6 @@
 (ns tarjeema.views.translate
   (:require [tarjeema.model :as model]
+            [tarjeema.views.components :refer [action-btn]]
             [tarjeema.views.layout :as layout])
   (:import [java.time ZoneId]
            [java.time.format DateTimeFormatter FormatStyle]
@@ -12,12 +13,6 @@
                       (.withZone (ZoneId/systemDefault))
                       (.format date))]
     [:time.date-relative {:datetime date} formatted]))
-
-(defn action-btn [data content]
-  [:form {:method "post"}
-   (for [[name value] data]
-     [:input {:type "hidden" :name name :value value}])
-   [:button.btn.btn-primary content]])
 
 (defn render-translate
   [{:keys [project lang strings current-string translations mk-string-href]}]
@@ -70,12 +65,13 @@
                                                   translation)
                (action-btn {:action         :delete-translation
                             :translation-id (:translation-id translation)}
+                           {:class "btn btn-primary"}
                            "Delete"))
              (when (model/can-approve? layout/*user-data*)
-               (if (-> translation :approval :translation-id)
-                 (action-btn {:action         :disapprove
+               (let [approved? (-> translation :approval :translation-id)
+                     action    (if approved? :disapprove :approve)
+                     text      (if approved? "Disapprove" "Approve")]
+                 (action-btn {:action         action
                               :translation-id (:translation-id translation)}
-                             "Disapprove")
-                 (action-btn {:action         :approve
-                            :translation-id (:translation-id translation)}
-                             "Approve")))]])]]])]))
+                             {:class "btn btn-primary"}
+                             text)))]])]]])]))
