@@ -1,6 +1,7 @@
 (ns tarjeema.routes.translate
   (:require [better-cond.core :as b]
             [clojure.string :as str]
+            [methodical.core :as m]
             [reitit.core :as r]
             [ring.middleware.params :refer [wrap-params]]
             [ring.util.response :as res]
@@ -12,10 +13,11 @@
             [tarjeema.util :refer [this-uri]]
             [toucan2.core :as t2]))
 
-(defmulti ^:private handle-action
-  (fn [{:keys [action]} _params] action))
+(m/defmulti ^:private handle-action
+  (fn [{:keys [action]} _params] action)
+  :combo (m/thread-first-method-combination))
 
-(defmethod handle-action :suggest
+(m/defmethod handle-action ::suggest
   [{:keys [string lang user]} form-params]
   (let [text (get form-params "text")]
     (when (str/blank? text)
@@ -26,12 +28,15 @@
                              :user-id          (:user-id user)
                              :translation-text text})))
 
-(defmethod handle-action :delete-translation [{:keys [user]} form-params]
+(derive ::delete-translation ::operates-on-translation)
+(derive ::approve ::operates-on-translation)
+(derive ::disapprove ::operates-on-translation)
+
+(m/defmethod handle-action :before ::operates-on-translation [ctx form-params]
   (b/cond
     :let [translation-id (some-> form-params
                                  (get "translation-id")
                                  parse-long)]
-
     (nil? translation-id)
     (throw (ex-info "Translation ID (integer) should be provided."
                     {:type :input-error, :http-status 400}))
@@ -41,53 +46,25 @@
     (throw (ex-info "Translation not found."
                     {:type :input-error, :http-status 404}))
 
-    (not (model/can-delete-translation? user translation))
+    (assoc ctx :translation translation)))
+
+(m/defmethod handle-action ::delete-translation [{:keys [user translation]} _]
+  (if (model/can-delete-translation? user translation)
+    (t2/delete! ::db/translation (:translation-id translation))
     (throw (ex-info "Unauthorised to delete translation."
-                    {:type :access-error, :http-status 403}))
+                    {:type :access-error, :http-status 403}))))
 
-    (t2/delete! ::db/translation translation-id)))
-
-(defmethod handle-action :approve [{:keys [user]} form-params]
-  (b/cond
-    :let [translation-id (some-> form-params
-                                 (get "translation-id")
-                                 parse-long)]
-
-    (nil? translation-id)
-    (throw (ex-info "Translation ID (integer) should be provided."
-                    {:type :input-error, :http-status 400}))
-
-    :let [translation (t2/select-one ::db/translation translation-id)]
-    (nil? translation)
-    (throw (ex-info "Translation not found."
-                    {:type :input-error, :http-status 404}))
-
-    (not (model/can-approve? user))
+(m/defmethod handle-action ::approve [{:keys [user translation]} _]
+  (if (model/can-approve? user)
+    (db/approve-translation translation user)
     (throw (ex-info "Unauthorised to approve translation."
-                    {:type :access-error, :http-status 403}))
+                    {:type :access-error, :http-status 403}))))
 
-    (db/approve-translation translation user)))
-
-(defmethod handle-action :disapprove [{:keys [user]} form-params]
-  (b/cond
-    :let [translation-id (some-> form-params
-                                 (get "translation-id")
-                                 parse-long)]
-
-    (nil? translation-id)
-    (throw (ex-info "Translation ID (integer) should be provided."
-                    {:type :input-error, :http-status 400}))
-
-    :let [translation (t2/select-one ::db/translation translation-id)]
-    (nil? translation)
-    (throw (ex-info "Translation not found."
-                    {:type :input-error, :http-status 404}))
-
-    (not (model/can-approve? user))
-    (throw (ex-info "Unauthorised to delete translation."
-                    {:type :access-error, :http-status 403}))
-
-    (db/disapprove-translation translation)))
+(m/defmethod handle-action ::disapprove [{:keys [user translation]} _]
+  (if (model/can-approve? user)
+    (db/disapprove-translation translation)
+    (throw (ex-info "Unauthorised to approve translation."
+                    {:type :access-error, :http-status 403}))))
 
 (defn translate
   [{:as req
@@ -113,7 +90,7 @@
             req       (assoc req :user-data user-data)]
 
       (not (str/blank? action))
-      (let [ctx {:action  (keyword action)
+      (let [ctx {:action  (keyword (namespace ::here) action)
                  :string  {:string-id string-id}
                  :lang    lang
                  :user    user-data}]
