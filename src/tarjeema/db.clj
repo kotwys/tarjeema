@@ -107,7 +107,7 @@
 (defn create-or-update-project
   [{:as project-data, :keys [project-id]} {:keys [user-id]}]
   (if project-id
-    (let [project (t2/select ::project project-id)]
+    (let [project (t2/select-one ::project project-id)]
       (when (nil? project)
         (throw (ex-info "No such project" {:type ::input-error})))
       (when-not (= (:owner-id project) user-id)
