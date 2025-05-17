@@ -10,7 +10,8 @@
 
 (defn dashboard
   [{:as req, ::r/keys [router]} res _raise]
-  (let [projects           (t2/select ::db/project)
+  (let [projects           (t2/select ::db/project
+                                      {:order-by [:project-id]})
         mk-project-url     #(get-route-url router
                                            ::project/project-view
                                            :path-params {:id (:project-id %)})
