@@ -7,11 +7,25 @@
             [ring.util.response :as res]
             [tarjeema.db :as db]
             [tarjeema.macros :refer [with-request-data]]
+            [tarjeema.middleware :refer [wrap-project]]
             [tarjeema.model :as model]
             [tarjeema.routes.core :refer [get-route-url]]
             [tarjeema.views.translate :refer [render-translate]]
             [tarjeema.util :refer [this-uri]]
             [toucan2.core :as t2]))
+
+(defn- extract-project
+  [{{:strs [project lang]} :params}]
+  (b/cond
+    :let [project-id (some-> project parse-long)]
+    (nil? project-id)
+    (throw (ex-info "Project ID should be provided." {}))
+
+    (str/blank? lang)
+    (throw (ex-info "Language should be provided." {}))
+
+    {:project-id project-id
+     :bcp-47     lang}))
 
 (m/defmulti ^:private handle-action
   (fn [{:keys [action]} _params] action)
@@ -68,26 +82,20 @@
 
 (defn translate
   [{:as req
-    :keys [user-data form-params]
+    :keys [project lang user-data form-params]
     ::r/keys [router]
-    {:strs [project action lang string]} :params} res _raise]
-  ;; TODO: validate params
-  (let [project-id     (parse-long project)
-        lang           (get (db/get-languages) lang)
-        strings        (db/get-strings {:project-id project-id})
+    {:strs [action string]} :params} res _raise]
+  (let [strings        (db/get-strings {:project-id (:project-id project)})
         mk-string-href #(get-route-url router ::translate
                                        :query-params
-                                       {:project project-id
+                                       {:project (:project-id project)
                                         :lang    (:bcp-47 lang)
                                         :string  (:string-id %)})]
     (b/cond
       (str/blank? string)
       (res (res/redirect (mk-string-href (first strings))))
 
-      :let [string-id (parse-long string)
-            project   (t2/select-one ::db/project project-id)
-            user-data (model/user-in-project user-data project)
-            req       (assoc req :user-data user-data)]
+      :let [string-id (parse-long string)]
 
       (not (str/blank? action))
       (let [ctx {:action  (keyword (namespace ::here) action)
@@ -118,4 +126,5 @@
 (def routes
   ["/translate" {:handler    #'translate
                  :name       ::translate
-                 :middleware [[wrap-params]]}])
+                 :middleware [[wrap-params]
+                              [wrap-project #'extract-project]]}])

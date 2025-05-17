@@ -1,7 +1,7 @@
 (ns tarjeema.middleware
   (:require [ring.util.response :as res]
             [reitit.core :as r]
-            [tarjeema.db :as-alias db]
+            [tarjeema.db :as db]
             [tarjeema.model :as model]
             [toucan2.core :as t2]))
 
@@ -41,15 +41,22 @@
 (defn wrap-project
   [handler f]
   (fn [{:as req :keys [user-data]} res raise]
-    (let [{:keys [project-id]} (f req)
-          project   (t2/select-one ::db/project project-id)]
+    (let [{:keys [project-id bcp-47]} (f req)
+          project (t2/select-one ::db/project project-id)
+          lang    (when bcp-47 (get (db/get-languages) bcp-47))
+          ctx     {:project project
+                   :lang    lang}]
       (when (nil? project)
         (throw (ex-info "Project not found." {:type        :input-error
                                               :http-status 404})))
+      (when (and bcp-47 (nil? lang))
+        (throw (ex-info "Unknown language." {:type        :input-error
+                                             :http-status 403})))
       (handler (assoc req
                       :project   project
+                      :lang      lang
                       :user-data (some-> user-data
-                                         (model/user-in-project project)))
+                                         (model/user-in-project ctx)))
                res raise))))
 
 (defn wrap-roles

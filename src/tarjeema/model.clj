@@ -1,16 +1,25 @@
-(ns tarjeema.model)
+(ns tarjeema.model
+  (:require [tarjeema.db :as-alias db]
+            [toucan2.core :as t2]))
 
-(defn- project-roles [{:keys [user-id roles]} project]
-  (-> roles
-      (concat (when (= (:owner-id project) user-id)
-                #{:owner}))
-      set))
+(defn- project-roles [{:keys [user-id]} project]
+  (when (= (:owner-id project) user-id) #{:owner}))
 
-(defn user-in-project [user project]
-  (assoc user
-         :roles (project-roles user project)))
+(defn- language-roles [user project lang]
+  (when (t2/select-one ::db/proofreader
+                       :user-id    (:user-id user)
+                       :project-id (:project-id project)
+                       :lang-id    (:lang-id lang))
+    #{:proofreader}))
 
-(def ^:private role-can-approve? #{:owner})
+(defn user-in-project [user {:keys [project lang]}]
+  (let [roles (->> (:roles user)
+                   (concat (project-roles user project))
+                   (concat (when lang (language-roles user project lang)))
+                   set)]
+    (assoc user :roles roles)))
+
+(def ^:private role-can-approve? #{:owner :proofreader})
 
 (defn can-delete-translation? [user translation]
   (or (= (:user-id user) (:user-id translation))
