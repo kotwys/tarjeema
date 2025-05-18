@@ -204,3 +204,8 @@
   (-> (t2.exec/query-one ["SELECT build_translation ( ?::int , ?::int )::text"
                           project-id lang-id])
       :build-translation))
+
+;;;; Comments
+
+(m/defmethod t2/table-name ::comment [_] "string_comments")
+(m/defmethod t2/primary-keys ::comment [_] [:comment-id])

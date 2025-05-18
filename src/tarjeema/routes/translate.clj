@@ -92,6 +92,15 @@
                   :user-id        (:user-id user)
                   :is-in-favor    value))))
 
+(m/defmethod handle-action ::comment
+  [{:keys [string user]} {:strs [comment]}]
+  (when (str/blank? comment)
+    (throw (ex-info "Comment text should be provided." {:type :input-error})))
+  (t2/insert-returning-instance! ::db/comment
+                                 {:user-id      (:user-id user)
+                                  :string-id    (:string-id string)
+                                  :comment-text comment}))
+
 (defn translate
   [{:as req
     :keys [project lang user-data form-params]
@@ -123,14 +132,19 @@
                                         :lang-id   (:lang-id lang)
                                         {:order-by [[:suggested-at :desc]]})
                              (t2/hydrate :user [:approval :user] :rating)
-                             (db/get-votes user-data))]
+                             (db/get-votes user-data))
+            comments     (-> (t2/select ::db/comment
+                                        :string-id string-id
+                                        {:order-by [[:posted-at :asc]]})
+                             (t2/hydrate :user))]
       (-> (with-request-data req
             (render-translate {:project        project
                                :lang           lang
                                :strings        strings
                                :mk-string-href mk-string-href
                                :current-string string
-                               :translations   translations}))
+                               :translations   translations
+                               :comments       comments}))
           str
           (res/response)
           (res/content-type "text/html")

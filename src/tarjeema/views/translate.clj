@@ -60,8 +60,15 @@
                       {:class (str "btn" (when active? " btn-secondary"))}
                       text))))]])
 
+(defn render-comment [comment]
+  [:div
+   [:div
+    [:div.fw-bold.mb-1 (-> comment :user :user-name)]
+    [:pre (-> comment :comment-text)]]
+   [:div.text-secondary (render-date (-> comment :posted-at))]])
+
 (defn render-translate
-  [{:keys [project lang strings current-string translations mk-string-href]}]
+  [{:keys [project lang strings current-string comments translations mk-string-href]}]
   (layout/app
    [:main.container-lg
     [:h1 (:project-name project) " › " (:lang-name lang)]
@@ -73,23 +80,37 @@
          [:a {:href (mk-string-href string)}
           (:string-text string)]])]]
     (when current-string
-      [:section
-       [:h2 "Translation"]
+      (list
        [:section
-        [:h3 "Source string"]
-        [:pre (:string-text current-string)]
-        [:div.text-secondary (:string-name current-string)]]
-       [:form {:method "post"}
-        [:input {:type "hidden" :name "action" :value "suggest"}]
-        [:textarea.form-control
-         {:placeholder "Enter translation here"
-          :name "text"
-          :rows 3}]
-        [:div.translation-actions
-         #_[:div.char-count "0 • " (count (:content active-string))]
-         [:button.btn.btn-primary "Save"]]]
+        [:h2 "Translation"]
+        [:section
+         [:h3 "Source string"]
+         [:pre (:string-text current-string)]
+         [:div.text-secondary (:string-name current-string)]]
+        [:form {:method "post"}
+         [:input {:type "hidden" :name "action" :value "suggest"}]
+         [:textarea.form-control
+          {:placeholder "Enter translation here"
+           :required true
+           :name "text"
+           :rows 3}]
+         [:div.translation-actions
+          #_[:div.char-count "0 • " (count (:content active-string))]
+          [:button.btn.btn-primary "Save"]]]
+        [:section
+         [:h3 "Suggestions"]
+         [:ul
+          (for [translation translations]
+            (render-suggestion translation))]]]
        [:section
-        [:h3 "Suggestions"]
-        [:ul
-         (for [translation translations]
-           (render-suggestion translation))]]])]))
+        [:div
+         [:h2 "Comments"]
+         (for [comment comments] (render-comment comment))]
+        [:form {:method "post"}
+         [:input {:type "hidden" :name :action :value :comment}]
+         [:textarea.form-control
+          {:placeholder "Leave a comment"
+           :name "comment"
+           :required true
+           :rows 3}]
+         [:button.btn.btn-primary "Comment"]]]))]))
