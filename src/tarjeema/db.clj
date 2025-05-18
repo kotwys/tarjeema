@@ -148,6 +148,36 @@
 (defn suggest-translation [translation-data]
   (t2/insert-returning-instance! ::translation translation-data))
 
+(m/defmethod t2/table-name ::vote [_] "translation_votes")
+(m/defmethod t2/primary-keys ::vote [_] [:translation-id :user-id])
+
+;; TODO: maybe refactor this similar logic some time
+(m/defmethod t2/batched-hydrate [::translation :rating]
+  [_ _ instances]
+  (let [ids     (into #{} (map :translation-id) instances)
+        results (sql {:select   [:translation-id
+                                 [[:sum [:case :is-in-favor 1 :else -1]]
+                                  :rating]]
+                      :from     [:translation-votes]
+                      :where    [:in :translation-id ids]
+                      :group-by [:translation-id]}
+                     {:into [(map (juxt :translation-id :rating)) {}]})]
+    (for [instance instances]
+      (assoc instance :rating (get results (:translation-id instance) 0)))))
+
+(defn get-votes [instances user]
+  (if (empty? instances)
+    instances
+    (let [ids  (into #{} (map :translation-id) instances)
+          results (sql {:select [:translation-id :is-in-favor]
+                        :from   [:translation-votes]
+                        :where  [:and
+                                 [:in :translation-id ids]
+                                 [:= :user-id (:user-id user)]]}
+                       {:into [(map (juxt :translation-id :is-in-favor)) {}]})]
+      (for [instance instances]
+        (assoc instance :vote (get results (:translation-id instance)))))))
+
 (m/defmethod t2/table-name ::approval [_] "translation_approvals")
 (m/defmethod t2/primary-keys ::approval [_] [:translation-id])
 

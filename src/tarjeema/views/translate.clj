@@ -14,6 +14,52 @@
                       (.format date))]
     [:time.date-relative {:datetime date} formatted]))
 
+(def ^:private vote-btns
+  [{:value true
+    :text  "+"}
+   {:value false
+    :text  "-"}])
+
+(defn render-suggestion [translation]
+  [:li
+   [:div
+    [:pre (:translation-text translation)]
+    [:div.mt-2.d-flex.gap-2
+     [:div.fw-bold (-> translation :user :user-name)]
+     [:div.text-secondary
+      (render-date (-> translation :suggested-at))]
+     [:div.text-secondary
+      "Rating: " (-> translation :rating)]]
+    (when (-> translation :approval :translation-id)
+      (let [{:keys [approval]} translation]
+        [:div.mt-2.d-flex.gap-2
+         [:div.text-success "✅ Approved"]
+         [:div.fw-bold (-> approval :user :user-name)]
+         [:div.text-secondary
+          (render-date (-> approval :approved-at))]]))]
+   [:div.d-flex
+    (when (model/can-delete-translation? layout/*user-data* translation)
+      (action-btn {:action         :delete-translation
+                   :translation-id (:translation-id translation)}
+                  {:class "btn btn-primary"}
+                  "Delete"))
+    (when (model/can-approve? layout/*user-data*)
+      (let [approved? (-> translation :approval :translation-id)
+            action    (if approved? :disapprove :approve)
+            text      (if approved? "Disapprove" "Approve")]
+        (action-btn {:action         action
+                     :translation-id (:translation-id translation)}
+                    {:class "btn btn-primary"}
+                    text)))
+    (when (model/can-vote? layout/*user-data* translation)
+      (for [{:keys [value text]} vote-btns]
+        (let [active? (= value (-> translation :vote))]
+          (action-btn {:action         :vote
+                       :translation-id (:translation-id translation)
+                       :value          (if active? nil (str value))}
+                      {:class (str "btn" (when active? " btn-secondary"))}
+                      text))))]])
+
 (defn render-translate
   [{:keys [project lang strings current-string translations mk-string-href]}]
   (layout/app
@@ -46,32 +92,4 @@
         [:h3 "Suggestions"]
         [:ul
          (for [translation translations]
-           [:li
-            [:div
-             [:pre (:translation-text translation)]
-             [:div.mt-2.d-flex.gap-2
-              [:div.fw-bold (-> translation :user :user-name)]
-              [:div.text-secondary
-               (render-date (-> translation :suggested-at))]]
-             (when (-> translation :approval :translation-id)
-               (let [{:keys [approval]} translation]
-                 [:div.mt-2.d-flex.gap-2
-                  [:div.text-success "✅ Approved"]
-                  [:div.fw-bold (-> approval :user :user-name)]
-                  [:div.text-secondary
-                   (render-date (-> approval :approved-at))]]))]
-            [:div.d-flex
-             (when (model/can-delete-translation? layout/*user-data*
-                                                  translation)
-               (action-btn {:action         :delete-translation
-                            :translation-id (:translation-id translation)}
-                           {:class "btn btn-primary"}
-                           "Delete"))
-             (when (model/can-approve? layout/*user-data*)
-               (let [approved? (-> translation :approval :translation-id)
-                     action    (if approved? :disapprove :approve)
-                     text      (if approved? "Disapprove" "Approve")]
-                 (action-btn {:action         action
-                              :translation-id (:translation-id translation)}
-                             {:class "btn btn-primary"}
-                             text)))]])]]])]))
+           (render-suggestion translation))]]])]))

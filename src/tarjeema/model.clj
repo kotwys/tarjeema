@@ -28,3 +28,6 @@
 (defn can-approve? [user]
   (some #'role-can-approve? (:roles user)))
 
+(defn can-vote? [user translation]
+  (not (or (= (:user-id user) (:user-id translation))
+           (some #'role-can-approve? (:roles user)))))

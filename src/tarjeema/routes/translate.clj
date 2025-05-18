@@ -45,6 +45,7 @@
 (derive ::delete-translation ::operates-on-translation)
 (derive ::approve ::operates-on-translation)
 (derive ::disapprove ::operates-on-translation)
+(derive ::vote ::operates-on-translation)
 
 (m/defmethod handle-action :before ::operates-on-translation [ctx form-params]
   (b/cond
@@ -80,6 +81,17 @@
     (throw (ex-info "Unauthorised to approve translation."
                     {:type :access-error, :http-status 403}))))
 
+(m/defmethod handle-action ::vote [{:keys [user translation]} {:strs [value]}]
+  (let [value (parse-boolean value)]
+    (t2/delete! ::db/vote
+                :translation-id (:translation-id translation)
+                :user-id        (:user-id user))
+    (when-not (nil? value)
+      (t2/insert! ::db/vote
+                  :translation-id (:translation-id translation)
+                  :user-id        (:user-id user)
+                  :is-in-favor    value))))
+
 (defn translate
   [{:as req
     :keys [project lang user-data form-params]
@@ -110,7 +122,8 @@
                                         :string-id string-id
                                         :lang-id   (:lang-id lang)
                                         {:order-by [[:suggested-at :desc]]})
-                             (t2/hydrate :user [:approval :user]))]
+                             (t2/hydrate :user [:approval :user] :rating)
+                             (db/get-votes user-data))]
       (-> (with-request-data req
             (render-translate {:project        project
                                :lang           lang
