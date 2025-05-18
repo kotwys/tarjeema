@@ -31,3 +31,7 @@
 (defn can-vote? [user translation]
   (not (or (= (:user-id user) (:user-id translation))
            (some #'role-can-approve? (:roles user)))))
+
+(defn can-delete-comment? [user comment]
+  (or (= (:user-id user) (:user-id comment))
+      (some #{:owner} (:roles user))))

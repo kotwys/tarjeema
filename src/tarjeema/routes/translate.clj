@@ -101,6 +101,22 @@
                                   :string-id    (:string-id string)
                                   :comment-text comment}))
 
+(m/defmethod handle-action ::delete-comment
+  [{:keys [user]} {:strs [comment-id]}]
+  (b/cond
+    :let [comment-id (some-> comment-id parse-long)]
+    (nil? comment-id)
+    (throw (ex-info "Comment ID should be provided." {}))
+
+    :let [comment (t2/select-one ::db/comment comment-id)]
+    (nil? comment)
+    (throw (ex-info "Comment not found." {}))
+
+    (not (model/can-delete-comment? user comment))
+    (throw (ex-info "Not authorised to delete comment." {}))
+
+    (t2/delete! ::db/comment comment-id)))
+
 (defn translate
   [{:as req
     :keys [project lang user-data form-params]

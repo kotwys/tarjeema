@@ -64,7 +64,13 @@
   [:div
    [:div
     [:div.fw-bold.mb-1 (-> comment :user :user-name)]
-    [:pre (-> comment :comment-text)]]
+    [:pre (-> comment :comment-text)]
+    (when (model/can-delete-comment? layout/*user-data* comment)
+      [:div
+       (action-btn {:action     :delete-comment
+                    :comment-id (:comment-id comment)}
+                   {:class "btn btn-danger"}
+                   "Delete")])]
    [:div.text-secondary (render-date (-> comment :posted-at))]])
 
 (defn render-translate
