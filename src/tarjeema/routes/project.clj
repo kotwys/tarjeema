@@ -17,7 +17,8 @@
             [tarjeema.routes.translate :as-alias translate]
             [tarjeema.views.project :refer [render-project
                                             render-project-settings
-                                            render-proofreaders]]
+                                            render-proofreaders
+                                            render-reports]]
             [toucan2.core :as t2]))
 
 (defn- extract-project [{{:keys [id]} :path-params}]
@@ -27,10 +28,23 @@
                                                         :http-status 400})))
     {:project-id project-id}))
 
+(defn calc-tabs [router tabs path-params]
+  (mapv (fn [{:keys [key name]}]
+          {:href (get-route-url router key :path-params path-params)
+           :name name})
+        tabs))
+
+(def ^:private project-tabs
+  [{:key  ::project-view
+    :name "Overview"}
+   {:key  ::project-reports
+    :name "Reports"}])
+
 (defn project-view
   [{:as req, :keys [project path-params], ::r/keys [router]} res _raise]
   (let [project (t2/hydrate project :source-lang :owner)
         {:keys [project-id]} project
+        tabs  (calc-tabs router project-tabs path-params)
         langs (db/language-completeness project)
         translate-href #(get-route-url router ::translate/translate
                                        :query-params
@@ -42,10 +56,24 @@
                                      :path-params path-params)]
     (-> (render req
                 (render-project {:project        project
+                                 :tabs           tabs
                                  :langs          langs
                                  :build-href     build-href
                                  :settings-href  settings-href
                                  :translate-href translate-href}))
+        res)))
+
+(defn reports
+  [{:as req, :keys [project path-params], ::r/keys [router]} res _raise]
+  (let [tabs (calc-tabs router project-tabs path-params)
+        ctx  {:project project}
+        overall-activity (db/overall-activity ctx)
+        top-members      (db/top-members ctx)]
+    (-> (render req
+          (render-reports {:project project
+                           :tabs    tabs
+                           :overall-activity overall-activity
+                           :top-members      top-members}))
         res)))
 
 (m/defmulti project-settings
@@ -61,11 +89,7 @@
 
 (m/defmethod project-settings :before :default
   [{:as req, ::r/keys [router], :keys [path-params]} _ _]
-  (let [tabs (mapv (fn [{:keys [key name]}]
-                     {:href (get-route-url router key
-                                           :path-params path-params)
-                      :name name})
-                   settings-tabs)]
+  (let [tabs (calc-tabs router settings-tabs path-params)]
     (-> req
         (assoc-in [::view-opts :tabs] tabs)
         (assoc-in [::view-opts :directory]
@@ -173,6 +197,8 @@
   ["/project/:id" {:middleware [[wrap-project #'extract-project]]}
    ["" {:get  #'project-view
         :name ::project-view}]
+   ["/reports" {:get  #'reports
+                :name ::project-reports}]
    ["/settings" {:middleware [[wrap-roles #{:owner}]]}
     ["/general" {:get        #'project-settings
                  :post       #'project-settings

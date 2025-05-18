@@ -236,3 +236,38 @@
           GROUP BY lang_id"
         project-id source-lang-id]
        {:model ::language}))
+
+(defn overall-activity [{:keys [project]}]
+  (-> {:with   [[:applicable-translations
+                 {:select [:*]
+                  :from   [:translations]
+                  :join   [:strings [:using :string-id]]
+                  :where  [:and [:= :project-id (:project-id project)]]}]]
+       :select [[{:select [[[:count :*]]]
+                  :from   [:applicable-translations]}
+                 :translated]
+                [{:select [[[:count :*]]]
+                  :from   [:translation-approvals]
+                  :join   [:applicable-translations [:using :translation-id]]}
+                 :approved]]}
+      (sql)
+      (first)))
+
+(defn top-members [{:keys [project]}]
+  (sql {:select  [:user-name
+                  [[:string_agg [:distinct :lang-name] [:inline "; "]]
+                   :languages]
+                  [[:count :*] :translated]
+                  [[:count
+                    [:nest
+                     {:select [[[:inline 1]]]
+                      :from   [:translation-approvals]
+                      :where  [:= :translation-id :t.translation-id]}]]
+                   :winning]]
+        :from     [[:translations :t]]
+        :join     [:languages [:using :lang-id]
+                   :users [:using :user-id]
+                   :strings [:using :string-id]]
+        :where    [:= :project-id (:project-id project)]
+        :group-by [:users.user-id]
+        :order-by [[:translated :desc]]}))

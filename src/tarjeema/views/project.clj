@@ -1,5 +1,5 @@
 (ns tarjeema.views.project
-  (:require [tarjeema.views.components :refer [action-btn]]
+  (:require [tarjeema.views.components :refer [action-btn nav-tabs]]
             [tarjeema.views.layout :as layout])
   (:import [java.text DecimalFormat]))
 
@@ -66,14 +66,7 @@
     [:div.row.justify-content-center
      [:div.col-12.col-md-6
       [:h1 "Project Settings"]
-      [:ul.nav.nav-underline.mb-2
-       (for [{:keys [name href]} tabs]
-         (let [current? (= href layout/*uri*)]
-           [:li.nav-item
-            [:a {:class (str "nav-link" (when current? " active"))
-                 :aria-current (when current? "page")
-                 :href href}
-             name]]))]
+      (nav-tabs tabs)
       body]]]))
 
 (defn render-project-settings [opts]
@@ -146,10 +139,11 @@
        [:td {:align "right"} (pc approved)]])]])
 
 (defn render-project
-  [{:as opts :keys [project langs build-href settings-href]}]
+  [{:as opts :keys [project tabs langs build-href settings-href]}]
   (layout/app
    [:main.container-lg
     [:h1 (:project-name project)]
+    (nav-tabs tabs)
     (when (some #{:owner} (:roles layout/*user-data*))
       [:a {:href settings-href} "Settings"])
     [:p (:project-description project)]
@@ -172,3 +166,42 @@
          (for [lang langs]
            [:option {:value (:bcp-47 lang)} (:lang-name lang)])]
         [:input.btn.btn-primary {:type "submit" :value "Build"}]]])]))
+
+(defn render-top-members [top-members]
+  [:section
+   [:h2 "Top Members"]
+   [:table.table.table-bordered.table-striped
+    [:thead
+     [:tr
+      [:th "Rank"]
+      [:th "Name"]
+      [:th "Languages"]
+      [:th "Translated"]
+      [:th "Winning"]]]
+    [:tbody
+     (for [[rank row] (map-indexed #'list top-members)]
+       [:tr
+        [:td {:align "right"} (inc rank)]
+        [:td (-> row :user-name)]
+        [:td (-> row :languages)]
+        [:td {:align "right"} (-> row :translated)]
+        [:td {:align "right"} (-> row :winning)]])]]])
+
+(def activity-points
+  [{:field :translated
+    :text "Strings Translated"}
+   {:field :approved
+    :text "Strings Approved"}])
+
+(defn render-reports
+  [{:keys [project tabs overall-activity top-members]}]
+  (layout/app
+   [:main.container-lg
+    [:h1 (:project-name project)]
+    (nav-tabs tabs)
+    [:div.d-flex.justify-content-center
+     (for [{:keys [field text]} activity-points]
+       [:div.col.text-center
+        [:div.fs-3 (get overall-activity field)]
+        [:div text]])]
+    (render-top-members top-members)]))
