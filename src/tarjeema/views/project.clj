@@ -1,6 +1,9 @@
 (ns tarjeema.views.project
   (:require [tarjeema.views.components :refer [action-btn]]
-            [tarjeema.views.layout :as layout]))
+            [tarjeema.views.layout :as layout])
+  (:import [java.text DecimalFormat]))
+
+(defn pc [n] (-> "0%" (DecimalFormat.) (.format n)))
 
 (defn render-settings-form
   [{:keys [alert btn-text stage]
@@ -121,8 +124,29 @@
     [:div.d-flex.mt-2
      [:button.btn.btn-primary.ms-auto "Promote"]]]))
 
+(defn render-language-completeness [{:keys [langs translate-href]}]
+  [:table
+   [:thead
+    [:tr
+     [:th {:style "width:50%"} "Language"]
+     [:td]
+     [:th "Translated"]
+     [:th [:span.ms-2 "Approved"]]]]
+   [:tbody
+    (for [{:as lang :keys [translated approved]} langs]
+      [:tr
+       [:td [:a {:href (translate-href lang)} (:lang-name lang)]]
+       [:td
+        [:div.progress-stacked.mt-2.mb-2 {:style "width:100px"}
+         [:div.progress {:style (str "width:" (pc approved))}
+          [:div.progress-bar.bg-success]]
+         [:div.progress {:style (str "width:" (pc (- translated approved)))}
+          [:div.progress-bar]]]]
+       [:td {:align "right"} (pc translated)]
+       [:td {:align "right"} (pc approved)]])]])
+
 (defn render-project
-  [{:keys [project langs translate-href build-href settings-href]}]
+  [{:as opts :keys [project langs build-href settings-href]}]
   (layout/app
    [:main.container-lg
     [:h1 (:project-name project)]
@@ -137,9 +161,7 @@
         " (" [:a {:href (str "mailto:" user-email)} "mail"] ")"])
      [:dt "Source Language"]
      [:dd (-> project :source-lang :lang-name)]]
-    [:ul
-     (for [lang langs]
-       [:li [:a {:href (translate-href lang)} (:lang-name lang)]])]
+    (render-language-completeness opts)
 
     (when (some #{:owner} (:roles layout/*user-data*))
       [:section

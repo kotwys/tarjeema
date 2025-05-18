@@ -209,3 +209,30 @@
 
 (m/defmethod t2/table-name ::comment [_] "string_comments")
 (m/defmethod t2/primary-keys ::comment [_] [:comment-id])
+
+;;;; Reports
+
+(defn language-completeness [{:keys [project-id source-lang-id]}]
+  (sql ["SELECT lang_id , lang_name , bcp47
+              , SUM
+                ( EXISTS
+                  ( SELECT *
+                      FROM translations AS t
+                     WHERE t.string_id = s.string_id
+                       AND t.lang_id = l.lang_id
+                  )::int
+                )::float / COUNT ( string_id ) AS translated
+              , SUM
+                ( EXISTS
+                  ( SELECT *
+                      FROM translations AS t
+                          JOIN translation_approvals USING ( translation_id )
+                         WHERE t.string_id = s.string_id
+                           AND t.lang_id = l.lang_id
+                      )::int
+                )::float / COUNT ( string_id ) AS approved
+           FROM strings AS s , languages AS l
+          WHERE project_id = ? AND lang_id <> ?
+          GROUP BY lang_id"
+        project-id source-lang-id]
+       {:model ::language}))

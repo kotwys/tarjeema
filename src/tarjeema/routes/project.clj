@@ -31,10 +31,7 @@
   [{:as req, :keys [project path-params], ::r/keys [router]} res _raise]
   (let [project (t2/hydrate project :source-lang :owner)
         {:keys [project-id]} project
-        langs   (->> (db/get-languages)
-                     vals
-                     (filter #(not (= (:lang-id %)
-                                      (:source-lang-id project)))))
+        langs (db/language-completeness project)
         translate-href #(get-route-url router ::translate/translate
                                        :query-params
                                        {:project project-id
