@@ -88,10 +88,11 @@
     :name "Proofreaders"}])
 
 (m/defmethod project-settings :before :default
-  [{:as req, ::r/keys [router], :keys [path-params]} _ _]
+  [{:as req, ::r/keys [router], :keys [project path-params]} _ _]
   (let [tabs (calc-tabs router settings-tabs path-params)]
     (-> req
         (assoc-in [::view-opts :tabs] tabs)
+        (assoc-in [::view-opts :project] project)
         (assoc-in [::view-opts :directory]
                   {:languages (vals (db/get-languages))}))))
 

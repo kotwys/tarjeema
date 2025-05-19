@@ -75,7 +75,7 @@
    (render-settings-form (assoc opts :btn-text "Apply"))))
 
 (defn render-proofreaders
-  [{:as opts :keys [proofreaders], {:keys [languages]} :directory}]
+  [{:as opts :keys [proofreaders project], {:keys [languages]} :directory}]
   (settings-page
    opts
    [:table.table.table-stripped
@@ -112,8 +112,9 @@
                  :disabled true
                  :value    ""}
         "Select a language"]
-       (for [{:keys [bcp-47 lang-name]} languages]
-         [:option {:value bcp-47} lang-name])]]]
+       (for [{:keys [lang-id bcp-47 lang-name]} languages]
+         (when-not (= lang-id (:source-lang-id project))
+           [:option {:value bcp-47} lang-name]))]]]
     [:div.d-flex.mt-2
      [:button.btn.btn-primary.ms-auto "Promote"]]]))
 
