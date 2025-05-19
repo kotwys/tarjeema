@@ -1,6 +1,6 @@
 (ns tarjeema.views.invites
   (:require [clojure.string :as str]
-            [tarjeema.views.components :refer [render-date]]
+            [tarjeema.views.components :refer [action-btn render-date]]
             [tarjeema.views.layout :as layout]))
 
 (defn render-single-invite [invite mk-url]
@@ -13,7 +13,14 @@
         :data-bs-target (str "#" id)
         :aria-expanded "false"
         :aria-controls id}
-       "Invite " (str/upper-case (:invite-code invite))]]
+       "Invite " (str/upper-case (:invite-code invite))
+       (cond
+         (not (:is-active invite))
+         [:span.ms-1.badge.bg-danger "Revoked"]
+
+         (and (not (zero? (:max-usage-count invite)))
+              (<= (:max-usage-count invite) (count (:usages invite))))
+         [:span.ms-1.badge.bg-danger "Expired"])]]
      [:div.accordion-collapse.collapse {:id id}
       [:div.accordion-body
        [:div.row.mb-2
@@ -27,7 +34,12 @@
          [:strong "Max Usage Count"] ":​ "
          (if (zero? (:max-usage-count invite))
            "∞"
-           (:max-usage-count invite))]]
+           (:max-usage-count invite))]
+        [:div.col-1
+         (action-btn {:action :revoke
+                      :invite-id (:invite-id invite)}
+                     {:class "btn btn-outline-danger"}
+                     "Revoke")]]
        [:h3 "Usages"]
        [:table.table.table-stripped
         [:thead

@@ -1,5 +1,6 @@
 (ns tarjeema.routes.invites
-  (:require [clojure.string :as str]
+  (:require [better-cond.core :as b]
+            [clojure.string :as str]
             [methodical.core :as m]
             [nano-id.core :refer [custom]]
             [reitit.core :as r]
@@ -28,6 +29,19 @@
                 :issuer-id (:user-id user)
                 :invite-code (generate-code)
                 :max-usage-count usages)))
+
+(m/defmethod handle-action ::revoke
+  [_ {:strs [invite-id]}]
+  (b/cond
+    :let [invite-id (some-> invite-id parse-long)]
+    (nil? invite-id)
+    (throw (ex-info "Invite ID should be provided." {}))
+
+    :let [invite (t2/select-one ::db/invite invite-id)]
+    (nil? invite)
+    (throw (ex-info "Invite not found." {}))
+
+    (-> invite (assoc :is-active false) (t2/save!))))
 
 (defn invites-action
   [{:keys [uri user-data], {:as params :strs [action]} :params} res _raise]

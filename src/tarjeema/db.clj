@@ -311,10 +311,11 @@
                     {:model ::invite-usage})]
     (assoc instance :usages usages)))
 
-(defn valid-invite? [{:keys [invite-id max-usage-count]}]
-  (or (zero? max-usage-count)
-      (let [result (sql {:select   [[[:count :*] :count]]
-                         :from     [:invite-usages]
-                         :where    [:= :invite-id invite-id]})
-            usage-count (-> result first :count)]
-        (< usage-count max-usage-count))))
+(defn valid-invite? [{:keys [invite-id is-active max-usage-count]}]
+  (and is-active
+       (or (zero? max-usage-count)
+           (let [result (sql {:select   [[[:count :*] :count]]
+                              :from     [:invite-usages]
+                              :where    [:= :invite-id invite-id]})
+                 usage-count (-> result first :count)]
+             (< usage-count max-usage-count)))))
