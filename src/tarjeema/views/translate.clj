@@ -80,14 +80,20 @@
        [:ul.list-unstyled
         (for [string strings]
           (let [href     (mk-string-href string)
-                current? (= (:string-id string) (:string-id current-string))]
+                current? (= (:string-id string) (:string-id current-string))
+                {:keys [status]} string
+                icon-name        (case status
+                                   "approved" "check-line"
+                                   "checkbox-blank-fill")]
             [:li
              [:a.string {:href href
                          :aria-current (when current? "page")}
               [:div.string__content
-               [:div.oneliner (:string-text string)]]
-              [:div {:class (str "string__status string__status_untranslated")}
-               (icon "checkbox-blank-fill")]]]))]]
+               [:div.oneliner (:string-text string)]
+               [:div.oneliner.fs-italic.text-secondary (:text string)]]
+              [:div {:class (str "string__status "
+                                 "string__status_" status)}
+               (icon icon-name)]]]))]]
       (when current-string
         (list
          [:section.translation

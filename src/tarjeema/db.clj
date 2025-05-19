@@ -143,10 +143,40 @@
 (m/defmethod t2/table-name ::string [_] "strings")
 (m/defmethod t2/primary-keys ::string [_] [:string-id])
 
-(defn get-strings [{:keys [project-id]}]
-  (t2/select :strings
-             :project-id project-id
-             {:order-by :string-name}))
+(defn get-strings [project lang]
+  (sql ["WITH applicable_translations AS
+              ( SELECT string_id , translation_id , translation_text
+                     , RANK() OVER
+                       ( PARTITION BY string_id
+                         ORDER BY suggested_at DESC ) AS rnk
+                  FROM strings
+                  JOIN translations USING ( string_id )
+                 WHERE ( project_id , lang_id ) = ( ? , ? ) )
+            , translated AS
+              ( SELECT string_id , 'translated' AS status
+                     , translation_text
+                  FROM applicable_translations
+                 WHERE rnk = 1 )
+            , approved AS
+              ( SELECT string_id , 'approved' AS status
+                     , translation_text
+                  FROM applicable_translations
+                  JOIN translation_approvals USING ( translation_id ) )
+         SELECT strings.*
+              , COALESCE
+                ( approved.translation_text
+                , translated.translation_text
+                ) AS text
+              , COALESCE
+                ( approved.status
+                , translated.status
+                , 'untranslated'
+                ) AS status
+           FROM strings
+                LEFT JOIN translated USING ( string_id )
+                LEFT JOIN approved USING ( string_id )"
+        (:project-id project) (:lang-id lang)]
+       {:model ::string}))
 
 ;;;; Translations
 
@@ -241,7 +271,8 @@
                 )::float / COUNT ( string_id ) AS approved
            FROM strings AS s , languages AS l
           WHERE project_id = ? AND lang_id <> ?
-          GROUP BY lang_id"
+          GROUP BY lang_id
+          ORDER BY bcp47"
         project-id source-lang-id]
        {:model ::language}))
 

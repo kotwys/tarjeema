@@ -122,7 +122,7 @@
     :keys [project lang user-data form-params]
     ::r/keys [router]
     {:strs [action string]} :params} res _raise]
-  (let [strings        (db/get-strings {:project-id (:project-id project)})
+  (let [strings        (db/get-strings project lang)
         mk-string-href #(get-route-url router ::translate
                                        :query-params
                                        {:project (:project-id project)
