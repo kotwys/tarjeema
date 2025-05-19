@@ -1,5 +1,20 @@
 (ns tarjeema.views.components
-  (:require [tarjeema.views.layout :as layout]))
+  (:require [tarjeema.views.layout :as layout])
+  (:import [java.time ZoneId]
+           [java.time.format DateTimeFormatter FormatStyle]
+           [java.util Locale]))
+
+(defn alert-box [{:keys [message kind]}]
+  [:div {:class (str "alert alert-" (name kind))} message])
+
+(defn render-date [date & {:keys [relative?]}]
+  (let [formatted (-> FormatStyle/MEDIUM
+                      (DateTimeFormatter/ofLocalizedDateTime)
+                      (.withLocale Locale/UK)
+                      (.withZone (ZoneId/systemDefault))
+                      (.format date))]
+    [:time {:class (when relative? "relative")
+            :datetime date} formatted]))
 
 (defn action-btn
   ([data content] (action-btn data {} content))

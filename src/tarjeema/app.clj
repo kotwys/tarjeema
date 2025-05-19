@@ -11,6 +11,8 @@
             [tarjeema.routes.create-project]
             [tarjeema.routes.dashboard]
             [tarjeema.routes.index]
+            [tarjeema.routes.invites]
+            [tarjeema.routes.join]
             [tarjeema.routes.project]
             [tarjeema.routes.translate]
             [tarjeema.util :refer [this-uri]]))
@@ -38,6 +40,8 @@
     [tarjeema.routes.create-project/routes
      tarjeema.routes.dashboard/routes
      tarjeema.routes.index/routes
+     tarjeema.routes.invites/routes
+     tarjeema.routes.join/routes
      tarjeema.routes.project/routes
      tarjeema.routes.translate/routes
      ["/logout" {:get #'logout}]]

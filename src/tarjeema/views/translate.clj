@@ -1,18 +1,7 @@
 (ns tarjeema.views.translate
   (:require [tarjeema.model :as model]
-            [tarjeema.views.components :refer [action-btn]]
-            [tarjeema.views.layout :as layout])
-  (:import [java.time ZoneId]
-           [java.time.format DateTimeFormatter FormatStyle]
-           [java.util Locale]))
-
-(defn render-date [date]
-  (let [formatted (-> FormatStyle/MEDIUM
-                      (DateTimeFormatter/ofLocalizedDateTime)
-                      (.withLocale Locale/UK)
-                      (.withZone (ZoneId/systemDefault))
-                      (.format date))]
-    [:time.date-relative {:datetime date} formatted]))
+            [tarjeema.views.components :refer [render-date action-btn]]
+            [tarjeema.views.layout :as layout]))
 
 (def ^:private vote-btns
   [{:value true
@@ -27,7 +16,7 @@
     [:div.mt-2.d-flex.gap-2
      [:div.fw-bold (-> translation :user :user-name)]
      [:div.text-secondary
-      (render-date (-> translation :suggested-at))]
+      (render-date (-> translation :suggested-at) :relative? true)]
      [:div.text-secondary
       "Rating: " (-> translation :rating)]]
     (when (-> translation :approval :translation-id)
@@ -36,7 +25,7 @@
          [:div.text-success "✅ Approved"]
          [:div.fw-bold (-> approval :user :user-name)]
          [:div.text-secondary
-          (render-date (-> approval :approved-at))]]))]
+          (render-date (-> approval :approved-at) :relative? true)]]))]
    [:div.d-flex
     (when (model/can-delete-translation? layout/*user-data* translation)
       (action-btn {:action         :delete-translation
@@ -71,7 +60,8 @@
                     :comment-id (:comment-id comment)}
                    {:class "btn btn-danger"}
                    "Delete")])]
-   [:div.text-secondary (render-date (-> comment :posted-at))]])
+   [:div.text-secondary
+    (render-date (-> comment :posted-at) :relative? true)]])
 
 (defn render-translate
   [{:keys [project lang strings current-string comments translations mk-string-href]}]

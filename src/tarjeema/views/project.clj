@@ -1,6 +1,6 @@
 (ns tarjeema.views.project
   (:require [clojure.string :as str]
-            [tarjeema.views.components :refer [action-btn nav-tabs]]
+            [tarjeema.views.components :refer [action-btn alert-box nav-tabs]]
             [tarjeema.views.layout :as layout])
   (:import [java.text DecimalFormat]))
 
@@ -11,8 +11,7 @@
     {:keys [languages]} :directory
     {:strs [project-id project-name source-lang description]} :params}]
   [:form {:method "post" :enctype "multipart/form-data"}
-   (when-let [{:keys [message kind]} alert]
-     [:div {:class (str "alert alert-" (name kind))} message])
+   (when alert (alert-box alert))
    (when project-id
      [:input {:type "hidden" :name "project-id" :value project-id}])
    [:div.mb-2

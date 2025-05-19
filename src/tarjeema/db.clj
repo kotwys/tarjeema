@@ -53,14 +53,21 @@
 
 #_{:clj-kondo/ignore [:clojure-lsp/unused-public-var]}
 (defn register-user
-  "Registers a user by given information."
-  [data]
+  "Registers a user by given information and a given invite."
+  [data & {:keys [invite]}]
   (let [{:keys [password]} data
         password-hash (hashers/derive password hash-opts)
         row (-> data
                 (select-keys [:user-email :user-name])
                 (assoc :password-hash password-hash))]
-    (t2/insert-returning-instance! ::user row)))
+    (t2/with-transaction [c nil]
+      (let [{:as user :keys [user-id]}
+            (t2/insert-returning-instance! :conn c ::user row)]
+        (when invite
+          (t2/insert! ::invite-usage
+                      :invite-id (:invite-id invite)
+                      :user-id user-id))
+        user))))
 
 (defn auth-user
   "Authorises a user. When given credentials are correct, returns the user
@@ -285,3 +292,29 @@
         :where    (report-filter ctx)
         :group-by [:users.user-id]
         :order-by [[:translated :desc]]}))
+
+;;;; Invites
+
+(m/defmethod t2/table-name ::invite [_] "invites")
+(m/defmethod t2/primary-keys ::invite [_] [:invite-id])
+(m/defmethod t2/model-for-automagic-hydration
+  [::invite :issuer] [_ _]
+  ::user)
+
+(m/defmethod t2/table-name ::invite-usage [_] "invite_usages")
+(m/defmethod t2/primary-keys ::invite-usage [_] [:user-id])
+(m/defmethod t2/simple-hydrate [::invite :usages]
+  [_ _ {:keys [invite-id] :as instance}]
+  (let [usages (sql {:select   [:*]
+                     :from     [:invite-usages]
+                     :where    [:= :invite-id invite-id]}
+                    {:model ::invite-usage})]
+    (assoc instance :usages usages)))
+
+(defn valid-invite? [{:keys [invite-id max-usage-count]}]
+  (or (zero? max-usage-count)
+      (let [result (sql {:select   [[[:count :*] :count]]
+                         :from     [:invite-usages]
+                         :where    [:= :invite-id invite-id]})
+            usage-count (-> result first :count)]
+        (< usage-count max-usage-count))))
