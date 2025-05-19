@@ -1,6 +1,11 @@
 (ns tarjeema.model
-  (:require [tarjeema.db :as-alias db]
+  (:require [tarjeema.db :as db]
             [toucan2.core :as t2]))
+
+(defn target-languages [project]
+  (->> (db/get-languages)
+       vals
+       (filter #(not (= (:lang-id %) (:source-lang-id project))))))
 
 (defn- project-roles [{:keys [user-id]} project]
   (when (= (:owner-id project) user-id) #{:owner}))

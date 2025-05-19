@@ -9,7 +9,8 @@
             [toucan2.execute :as t2.exec]
             [toucan2.honeysql2]
             [toucan2.jdbc.options]
-            [toucan2.realize :refer [realize]]))
+            [toucan2.realize :refer [realize]]
+            [java-time.api :as jt]))
 
 (defstate conn
   :start (jdbc/get-datasource (:db-uri config)))
@@ -237,12 +238,25 @@
         project-id source-lang-id]
        {:model ::language}))
 
-(defn overall-activity [{:keys [project]}]
+(defn- mk-timestamptz [local-date]
+  (let [t (-> local-date
+              (jt/zoned-date-time (jt/local-time 0) (jt/zone-id)))]
+    [:timestamptz (jt/format :iso-offset-date-time t)]))
+
+(defn- report-filter [{:keys [project lang-id since until]}]
+  [:and
+   [:= :project-id (:project-id project)]
+   (when lang-id [:= :lang-id lang-id])
+   (when since [:< (mk-timestamptz since) :suggested-at])
+   (when until
+     [:> (mk-timestamptz (jt/+ until (jt/days 1))) :suggested-at])])
+
+(defn overall-activity [ctx]
   (-> {:with   [[:applicable-translations
                  {:select [:*]
                   :from   [:translations]
                   :join   [:strings [:using :string-id]]
-                  :where  [:and [:= :project-id (:project-id project)]]}]]
+                  :where  (report-filter ctx)}]]
        :select [[{:select [[[:count :*]]]
                   :from   [:applicable-translations]}
                  :translated]
@@ -253,7 +267,7 @@
       (sql)
       (first)))
 
-(defn top-members [{:keys [project]}]
+(defn top-members [ctx]
   (sql {:select  [:user-name
                   [[:string_agg [:distinct :lang-name] [:inline "; "]]
                    :languages]
@@ -268,6 +282,6 @@
         :join     [:languages [:using :lang-id]
                    :users [:using :user-id]
                    :strings [:using :string-id]]
-        :where    [:= :project-id (:project-id project)]
+        :where    (report-filter ctx)
         :group-by [:users.user-id]
         :order-by [[:translated :desc]]}))

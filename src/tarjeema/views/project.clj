@@ -1,5 +1,6 @@
 (ns tarjeema.views.project
-  (:require [tarjeema.views.components :refer [action-btn nav-tabs]]
+  (:require [clojure.string :as str]
+            [tarjeema.views.components :refer [action-btn nav-tabs]]
             [tarjeema.views.layout :as layout])
   (:import [java.text DecimalFormat]))
 
@@ -195,11 +196,38 @@
     :text "Strings Approved"}])
 
 (defn render-reports
-  [{:keys [project tabs overall-activity top-members]}]
+  [{:keys [project tabs overall-activity top-members],
+    {:strs [lang since until]} :params
+    {:keys [languages]} :directory}]
   (layout/app
    [:main.container-lg
     [:h1 (:project-name project)]
     (nav-tabs tabs)
+    [:form {:method "get"}
+     [:div.row
+      [:div.col.row
+       [:label.col-3.col-form-label {:for "lang"} "Language"]
+       [:div.col-9
+        [:select#lang.col.form-select {:name "lang"}
+         [:option {:value ""
+                   :selected (str/blank? lang)} "All"]
+         (for [{:keys [bcp-47 lang-name]} languages]
+           [:option {:value bcp-47
+                     :selected (= bcp-47 lang)} lang-name])]]]
+      [:div.col.row
+       [:label.col-3.col-form-label {:for "since"} "Since"]
+       [:div.col-9
+        [:input#since.form-control {:name "since"
+                                    :type "date"
+                                    :value since}]]]
+      [:div.col.row
+       [:label.col-3.col-form-label {:for "until"} "Until"]
+       [:div.col-9
+        [:input#until.form-control {:name "until"
+                                    :type "date"
+                                    :value until}]]]]
+     [:div.d-flex
+      [:button.btn.btn-primary.ms-auto "Generate"]]]
     [:div.d-flex.justify-content-center
      (for [{:keys [field text]} activity-points]
        [:div.col.text-center

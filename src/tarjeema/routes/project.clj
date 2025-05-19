@@ -1,6 +1,7 @@
 (ns tarjeema.routes.project
   (:require [better-cond.core :as b]
             [clojure.string :as str]
+            [java-time.api :as jt]
             [methodical.core :as m]
             [reitit.core :as r]
             [ring.middleware.multipart-params :refer [parse-multipart-params]]
@@ -13,6 +14,7 @@
                                            create-or-update-project]]
             [tarjeema.macros :refer [render]]
             [tarjeema.middleware :refer [wrap-project wrap-roles]]
+            [tarjeema.model :as model]
             [tarjeema.routes.core :refer [get-route-url]]
             [tarjeema.routes.translate :as-alias translate]
             [tarjeema.views.project :refer [render-project
@@ -63,15 +65,34 @@
                                  :translate-href translate-href}))
         res)))
 
+(defn parse-report-filter [{:strs [lang since until]}]
+  (let [lang  (get (db/get-languages) lang)
+        since (when-not (str/blank? since) (jt/local-date since))
+        until (when-not (str/blank? until) (jt/local-date until))]
+    (when (and since until (jt/< until since))
+      (throw (ex-info "Until date should be past since date." {})))
+    {:lang  lang
+     :since since
+     :until until}))
+
 (defn reports
-  [{:as req, :keys [project path-params], ::r/keys [router]} res _raise]
+  [{:as req, :keys [project params path-params], ::r/keys [router]} res _raise]
   (let [tabs (calc-tabs router project-tabs path-params)
-        ctx  {:project project}
+        parsed (parse-report-filter params)
+        ctx    {:project project
+                :lang-id (-> parsed :lang :lang-id)
+                :since   (:since parsed)
+                :until   (:until parsed)}
+        languages (model/target-languages project)
         overall-activity (db/overall-activity ctx)
         top-members      (db/top-members ctx)]
     (-> (render req
           (render-reports {:project project
                            :tabs    tabs
+                           :params  {"lang"  (-> parsed :lang :bcp-47)
+                                     "since" (some-> parsed :since str)
+                                     "until" (some-> parsed :until str)}
+                           :directory {:languages languages}
                            :overall-activity overall-activity
                            :top-members      top-members}))
         res)))
@@ -199,7 +220,8 @@
    ["" {:get  #'project-view
         :name ::project-view}]
    ["/reports" {:get  #'reports
-                :name ::project-reports}]
+                :name ::project-reports
+                :middleware [[wrap-params]]}]
    ["/settings" {:middleware [[wrap-roles #{:owner}]]}
     ["/general" {:get        #'project-settings
                  :post       #'project-settings

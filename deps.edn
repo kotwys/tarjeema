@@ -3,6 +3,7 @@
  {aero/aero                      {:mvn/version "1.1.6"}
   better-cond/better-cond        {:mvn/version "2.1.5"}
   buddy/buddy-hashers            {:mvn/version "2.0.167"}
+  clojure.java-time/clojure.java-time {:mvn/version "1.4.3"}
   hiccup/hiccup                  {:mvn/version "2.0.0-RC5"}
   http-kit/http-kit              {:mvn/version "2.8.0"}
   io.github.camsaul/toucan2      {:mvn/version "1.0.561"}
