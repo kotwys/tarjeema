@@ -2,9 +2,18 @@
   "name": "tarjeema",
   "version": "1.0.0",
   "private": true,
+  "scripts": {
+    "build:icons": "gulp icons",
+    "build:styles": "gulp styles",
+    "watch:styles": "gulp watchStyles"
+  },
   "devDependencies": {
+    "bootstrap": "^5.3.6",
     "gulp": "^5.0.0",
+    "gulp-filter": "^9.0.1",
     "gulp-sass": "^6.0.1",
+    "gulp-svg-sprite": "^2.0.3",
+    "remixicon": "^4.6.0",
     "sass": "^1.86.3"
   }
 }

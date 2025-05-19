@@ -2,7 +2,7 @@
   (:require [tarjeema.views.layout :as layout]))
 
 (defn render-login-form [{:keys [error]}]
-  [:div.card.p-5
+  [:div.card.p-5.bg-white
    (when error
      [:div.alert.alert-danger error])
    [:form {:method "post"}
@@ -20,11 +20,12 @@
                                   :value "Sign in"}]]])
 
 (defn render-index [opts]
-  (layout/app
-   [:main.container-lg
-    [:div.row
-     [:div.col-12.col-md.p-4
-      [:h1 "Welcome to Tarjeema, the collaborative translation platform!"]
-      [:p "To start working, you need to sign in."]]
-     [:div.col-12.col-md-5
-      (render-login-form opts)]]]))
+  (layout/bare
+   [:div.bg-landing.d-flex.align-items-center
+    [:main.container-lg
+     [:div.row
+      [:div.card.col-12.col-md.p-4.bg-white.d-flex.flex-column.justify-content-center
+       [:h1 "Welcome to Tarjeema, the collaborative translation platform!"]
+       [:p "To start working, you need to sign in."]]
+      [:div.col-12.col-md-5
+       (render-login-form opts)]]]]))

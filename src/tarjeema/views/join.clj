@@ -9,8 +9,8 @@
      (alert-box alert)]]))
 
 (defn render-join [{:keys [alert]}]
-  (layout/app
-   [:main.row.d-flex.justify-content-center
+  (layout/bare
+   [:main.bg-landing.row.d-flex.justify-content-center.align-items-center
     [:div.card.p-5.col-12.col-sm-8.col-md-6.col-lg-4
      (when alert (alert-box alert))
      [:h1 "Join"]

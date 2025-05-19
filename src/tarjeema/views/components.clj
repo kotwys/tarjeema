@@ -4,6 +4,11 @@
            [java.time.format DateTimeFormatter FormatStyle]
            [java.util Locale]))
 
+(defn icon [name]
+  (let [href (str "icons.svg#" name)]
+    [:svg.icon
+     [:use {:xlink:href  href}]]))
+
 (defn alert-box [{:keys [message kind]}]
   [:div {:class (str "alert alert-" (name kind))} message])
 

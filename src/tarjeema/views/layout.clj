@@ -5,9 +5,12 @@
 (def ^:dynamic *title* nil)
 (def ^:dynamic *uri* nil)
 
+(def ^:dynamic *page-title* nil)
+(def ^:dynamic *page-subtitle* nil)
+
 (def ^:dynamic *user-data* nil)
 
-(defn app [& body]
+(defn bare [& body]
   (html5
     [:html {:lang "en"}
      [:head
@@ -16,20 +19,22 @@
       [:title (if *title*
                 (str *title* " | " site-name)
                 site-name)]
-      [:link {:href "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
-              :rel "stylesheet"
-              :integrity "sha384-9ndCyUaIbzAi2FUVXJi0CjmCapSmO7SnpJef0486qhLnuZ2cdeRhO02iuK6FUUVM",
-              :crossorigin "anonymous"}]]
-     [:body
-      [:header.navbar.bg-body-tertiary
-       [:nav.container-fluid
-        [:a.navbar-brand {:href "/"} "Tarjeema"]
-        (when *user-data*
-          [:ul.navbar-nav
-           [:li.nav-item
-            [:a.nav-link {:href "/logout"} "Log out"]]])]]
-      body
-      [:script
-       {:src "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
-        :integrity "sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz"
-        :crossorigin "anonymous"}]]]))
+      [:link {:href "/index.css" :rel "stylesheet"}]]
+     [:body body]]))
+
+(defn app [& body]
+  (bare
+   [:header.header
+    [:a.header__logo {:href "/" :title "Tarjeema"}
+     [:img {:src "/logo.svg" :height 24}]]
+    [:div.header__content
+     [:h1.header__heading
+      [:div *page-title*]
+      (when *page-subtitle* [:div *page-subtitle*])]
+     (when *user-data*
+       [:a.ms-auto {:href "/logout"} "Log out"])]]
+   body
+   [:script
+    {:src "https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"
+     :integrity "sha384-geWF76RCwLtnZ8qwWowPQNguL3RmwHVBC9FhGdlKrxdiJJigb/j/68SIy3Te4Bkz"
+     :crossorigin "anonymous"}]))

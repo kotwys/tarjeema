@@ -57,24 +57,24 @@
             [:td (render-date registered-at)]])]]]]]))
 
 (defn render-invites [{:keys [invites mk-url]}]
-  (layout/app
-   [:main.container-lg
-    [:h1 "Invites"]
-    (when (seq invites)
-      [:div.accordion
-       (for [invite invites]
-         (render-single-invite invite mk-url))])
-    [:section.mt-2
-     [:h2 "Issue an Invite"]
-     [:form {:method "post"}
-      [:input {:type "hidden" :name :action :value :issue}]
-      [:div.row.mb-2
-       [:label.col-3.col-form-label {:for "usage"} "Max Usage Count"]
-       [:div.col-4
-        [:input#usage.form-control {:type  "number"
-                                    :name  "usages"
-                                    :value "0"
-                                    :min   "0"
-                                    :required true}]
-        [:div.form-text "Leave it as zero to make it limitless."]]]
-      [:button.btn.btn-primary "Issue"]]]]))
+  (binding [layout/*page-title* "Invites"]
+    (layout/app
+     [:main.page-main
+      (when (seq invites)
+        [:div.accordion
+         (for [invite invites]
+           (render-single-invite invite mk-url))])
+      [:section.mt-2
+       [:h2 "Issue an Invite"]
+       [:form {:method "post"}
+        [:input {:type "hidden" :name :action :value :issue}]
+        [:div.row.mb-2
+         [:label.col-3.col-form-label {:for "usage"} "Max Usage Count"]
+         [:div.col-4
+          [:input#usage.form-control {:type  "number"
+                                      :name  "usages"
+                                      :value "0"
+                                      :min   "0"
+                                      :required true}]
+          [:div.form-text "Leave it as zero to make it limitless."]]]
+        [:button.btn.btn-primary "Issue"]]]])))

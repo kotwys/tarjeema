@@ -3,10 +3,10 @@
 
 (defn render-dashboard
   [{:keys [projects mk-project-url create-project-url]}]
-  (binding [layout/*title* "Dashboard"]
+  (binding [layout/*title* "Dashboard"
+            layout/*page-title* "Dashboard"]
     (layout/app
-     [:main.container-lg
-      [:h1 "Dashboard"]
+     [:main.page-main
       [:p "Hello, " (:user-name layout/*user-data*) "!"]
       [:section
        [:div.d-flex.align-items-center

@@ -50,24 +50,23 @@
                                           :value btn-text}]]])
 
 (defn render-create-project [opts]
-  (binding [layout/*title* "Create New Project"]
+  (binding [layout/*title* "Create New Project"
+            layout/*page-title* "Create New Project"]
     (layout/app
-     [:main.container-sm
-      [:div.row.justify-content-center
-       [:div.col-12.col-md-6
-        [:h1 "Create New Project"]
+     [:main.page-main
+      [:div.col-12.col-md-6
         (render-settings-form (assoc opts
                                      :stage :create
-                                     :btn-text "Create"))]]])))
+                                     :btn-text "Create"))]])))
 
-(defn settings-page [{:keys [tabs]} & body]
-  (layout/app
-   [:main.container-sm
-    [:div.row.justify-content-center
-     [:div.col-12.col-md-6
-      [:h1 "Project Settings"]
-      (nav-tabs tabs)
-      body]]]))
+(defn settings-page [{:keys [project tabs]} & body]
+  (binding [layout/*page-title* (:project-name project)
+            layout/*page-subtitle* "Settings"]
+    (layout/app
+     [:main.page-main
+      [:div.col-12.col-md-6
+       (nav-tabs tabs)
+       body]])))
 
 (defn render-project-settings [opts]
   (settings-page
@@ -141,32 +140,32 @@
 
 (defn render-project
   [{:as opts :keys [project tabs langs build-href settings-href]}]
-  (layout/app
-   [:main.container-lg
-    [:h1 (:project-name project)]
-    (nav-tabs tabs)
-    (when (some #{:owner} (:roles layout/*user-data*))
-      [:a {:href settings-href} "Settings"])
-    [:p (:project-description project)]
-    [:dl
-     [:dt "Owner"]
-     (let [{:keys [user-name user-email]} (-> project :owner)]
-       [:dd
-        user-name
-        " (" [:a {:href (str "mailto:" user-email)} "mail"] ")"])
-     [:dt "Source Language"]
-     [:dd (-> project :source-lang :lang-name)]]
-    (render-language-completeness opts)
+  (binding [layout/*page-title* (:project-name project)]
+    (layout/app
+     [:main.page-main
+      (nav-tabs tabs)
+      (when (some #{:owner} (:roles layout/*user-data*))
+        [:a {:href settings-href} "Settings"])
+      [:p (:project-description project)]
+      [:dl
+       [:dt "Owner"]
+       (let [{:keys [user-name user-email]} (-> project :owner)]
+         [:dd
+          user-name
+          " (" [:a {:href (str "mailto:" user-email)} "mail"] ")"])
+       [:dt "Source Language"]
+       [:dd (-> project :source-lang :lang-name)]]
+      (render-language-completeness opts)
 
-    (when (some #{:owner} (:roles layout/*user-data*))
-      [:section
-       [:h2 "Build Translations"]
-       [:form {:action build-href :method "get"}
-        [:select {:name "lang", :required true}
-         [:option {:selected true, :disabled true} "Select a language"]
-         (for [lang langs]
-           [:option {:value (:bcp-47 lang)} (:lang-name lang)])]
-        [:input.btn.btn-primary {:type "submit" :value "Build"}]]])]))
+      (when (some #{:owner} (:roles layout/*user-data*))
+        [:section
+         [:h2 "Build Translations"]
+         [:form {:action build-href :method "get"}
+          [:select {:name "lang", :required true}
+           [:option {:selected true, :disabled true} "Select a language"]
+           (for [lang langs]
+             [:option {:value (:bcp-47 lang)} (:lang-name lang)])]
+          [:input.btn.btn-primary {:type "submit" :value "Build"}]]])])))
 
 (defn render-top-members [top-members]
   [:section
@@ -198,38 +197,38 @@
   [{:keys [project tabs overall-activity top-members],
     {:strs [lang since until]} :params
     {:keys [languages]} :directory}]
-  (layout/app
-   [:main.container-lg
-    [:h1 (:project-name project)]
-    (nav-tabs tabs)
-    [:form {:method "get"}
-     [:div.row
-      [:div.col.row
-       [:label.col-3.col-form-label {:for "lang"} "Language"]
-       [:div.col-9
-        [:select#lang.col.form-select {:name "lang"}
-         [:option {:value ""
-                   :selected (str/blank? lang)} "All"]
-         (for [{:keys [bcp-47 lang-name]} languages]
-           [:option {:value bcp-47
-                     :selected (= bcp-47 lang)} lang-name])]]]
-      [:div.col.row
-       [:label.col-3.col-form-label {:for "since"} "Since"]
-       [:div.col-9
-        [:input#since.form-control {:name "since"
-                                    :type "date"
-                                    :value since}]]]
-      [:div.col.row
-       [:label.col-3.col-form-label {:for "until"} "Until"]
-       [:div.col-9
-        [:input#until.form-control {:name "until"
-                                    :type "date"
-                                    :value until}]]]]
-     [:div.d-flex
-      [:button.btn.btn-primary.ms-auto "Generate"]]]
-    [:div.d-flex.justify-content-center
-     (for [{:keys [field text]} activity-points]
-       [:div.col.text-center
-        [:div.fs-3 (get overall-activity field)]
-        [:div text]])]
-    (render-top-members top-members)]))
+  (binding [layout/*page-title* (:project-name project)]
+    (layout/app
+     [:main.page-main
+      (nav-tabs tabs)
+      [:form {:method "get"}
+       [:div.row
+        [:div.col.row
+         [:label.col-3.col-form-label {:for "lang"} "Language"]
+         [:div.col-9
+          [:select#lang.col.form-select {:name "lang"}
+           [:option {:value ""
+                     :selected (str/blank? lang)} "All"]
+           (for [{:keys [bcp-47 lang-name]} languages]
+             [:option {:value bcp-47
+                       :selected (= bcp-47 lang)} lang-name])]]]
+        [:div.col.row
+         [:label.col-3.col-form-label {:for "since"} "Since"]
+         [:div.col-9
+          [:input#since.form-control {:name "since"
+                                      :type "date"
+                                      :value since}]]]
+        [:div.col.row
+         [:label.col-3.col-form-label {:for "until"} "Until"]
+         [:div.col-9
+          [:input#until.form-control {:name "until"
+                                      :type "date"
+                                      :value until}]]]]
+       [:div.d-flex
+        [:button.btn.btn-primary.ms-auto "Generate"]]]
+      [:div.d-flex.justify-content-center
+       (for [{:keys [field text]} activity-points]
+         [:div.col.text-center
+          [:div.fs-3 (get overall-activity field)]
+          [:div text]])]
+      (render-top-members top-members)])))
